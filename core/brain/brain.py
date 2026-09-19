@@ -8,6 +8,7 @@ from core.planner import StepExecution, TaskExecutionResult, TaskExecutor
 from core.router import CapabilityRouter, RouteCandidate, RouteRequest
 from core.policy import PolicyDecisionState
 from core.audit import HashChainAuditStore
+from core.observability import TraceContext
 
 
 class BrainError(RuntimeError):
@@ -25,6 +26,7 @@ class BrainPlan:
     task_id: str
     steps: tuple[PlannedStep, ...]
     requires_confirmation: bool
+    trace_context: TraceContext
 
 
 class StepRunner(Protocol):
@@ -53,8 +55,14 @@ class Brain:
         self._max_workers = max_workers
         self._audit = audit_store
 
-    def plan(self, task: Task) -> BrainPlan:
+    def plan(
+        self,
+        task: Task,
+        *,
+        trace_context: TraceContext | None = None,
+    ) -> BrainPlan:
         task.validate()
+        trace = trace_context or TraceContext.new_root()
         planned: list[PlannedStep] = []
         confirmation = False
 
@@ -79,6 +87,7 @@ class Brain:
             task_id=task.task_id,
             steps=tuple(planned),
             requires_confirmation=confirmation,
+            trace_context=trace,
         )
         self._record(
             "brain.plan_created",
@@ -87,6 +96,7 @@ class Brain:
                 "step_count": len(planned),
                 "requires_confirmation": confirmation,
             },
+            trace_context=trace,
         )
         return result
 
@@ -97,7 +107,8 @@ class Brain:
         confirmed: bool = False,
         initial_context: Mapping[str, object] | None = None,
     ) -> TaskExecutionResult:
-        plan = self.plan(task)
+        trace = TraceContext.new_root()
+        plan = self.plan(task, trace_context=trace)
         if plan.requires_confirmation and not confirmed:
             raise BrainError("task requires human confirmation before execution")
 
@@ -115,6 +126,7 @@ class Brain:
                     "capability_id": route.entry.manifest.capability_id,
                     "policy_state": route.policy_state.value,
                 },
+                trace_context=trace,
             )
             return output
 
@@ -129,6 +141,7 @@ class Brain:
                 "task_id": task.task_id,
                 "confirmed": confirmed,
             },
+            trace_context=trace,
         )
         result = executor.execute(
             task,
@@ -141,9 +154,20 @@ class Brain:
                 "succeeded": result.succeeded,
                 "failed_step": result.failed_step,
             },
+            trace_context=trace,
         )
         return result
 
-    def _record(self, event_name: str, attributes: Mapping[str, object]) -> None:
-        if self._audit is not None:
-            self._audit.append(event_name, attributes)
+    def _record(
+        self,
+        event_name: str,
+        attributes: Mapping[str, object],
+        *,
+        trace_context: TraceContext | None = None,
+    ) -> None:
+        if self._audit is None:
+            return
+        enriched = dict(attributes)
+        if trace_context is not None:
+            enriched.update(trace_context.as_attributes())
+        self._audit.append(event_name, enriched)
