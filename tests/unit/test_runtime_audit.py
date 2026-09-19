@@ -91,6 +91,7 @@ class RuntimeAuditTests(unittest.TestCase):
                     command=("/bin/echo", "ok"),
                     output_path=Path(temp) / "out",
                 ),
+                verifier=lambda _: True,
             )
             events = audit.read_all()
             names = [event.event_name for event in events]
