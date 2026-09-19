@@ -75,6 +75,7 @@ class FakeRunner:
         self.process: FakeProcess | None = None
         self.fail_start = False
         self.attestation_overrides = attestation_overrides or {}
+        self.ownership_labels: dict[str, str] = {}
 
     def run(
         self,
@@ -88,6 +89,14 @@ class FakeRunner:
 
         if command[:3] == ("container", "system", "status"):
             return self._json_result({"status": "running"})
+
+        if command[:2] == ("container", "create"):
+            self.ownership_labels = {}
+            for value in command:
+                if value.startswith("com.super-ai.") and "=" in value:
+                    key, label_value = value.split("=", 1)
+                    self.ownership_labels[key] = label_value
+            return CommandResult(returncode=0, stdout=b"", stderr=b"")
 
         if command[:3] == ("container", "image", "inspect"):
             return self._json_result(
@@ -143,13 +152,9 @@ class FakeRunner:
         return self.process
 
     def _attestation_payload(self, container_id: str):
-        execution_id = container_id.removeprefix("super-ai-").ljust(32, "0")
         configuration = {
             "id": container_id,
-            "labels": {
-                "com.super-ai.owner": "super-ai",
-                "com.super-ai.execution": execution_id,
-            },
+            "labels": dict(self.ownership_labels),
             "image": {
                 "reference": "alpine:latest",
                 "descriptor": {"digest": IMAGE_DIGEST},
