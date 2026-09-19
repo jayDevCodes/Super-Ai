@@ -47,3 +47,5 @@ from .execution import (
     ProcessLauncher,
     SubprocessLauncher,
 )
+
+from .session import ExecutionSession, ExecutionSessionError
