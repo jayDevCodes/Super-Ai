@@ -32,8 +32,8 @@ class AppleContainerSandboxTests(unittest.TestCase):
             self.assertIn("--rm", plan.command)
             self.assertIn("--memory", plan.command)
             self.assertIn("512M", plan.command)
-            self.assertIn("/capability", plan.command)
-            self.assertIn("/workspace", plan.command)
+            self.assertTrue(any("/capability" in item for item in plan.command))
+            self.assertTrue(any("/workspace" in item for item in plan.command))
             self.assertIn("network=none", plan.safety_note)
 
     def test_isolated_network_requires_named_network(self):
