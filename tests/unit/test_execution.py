@@ -210,7 +210,7 @@ class ExecutionControllerTests(unittest.TestCase):
         self.assertTrue(process.terminated or process.killed)
 
     def test_pre_cancelled_execution_does_not_wait_for_work(self):
-        process = FakeProcess(returncode=0)
+        process = FakeProcess(returncode=0, delay=0.2)
         launcher = FakeLauncher(process)
         controller = ExecutionController(launcher)
         token = CancellationToken()
