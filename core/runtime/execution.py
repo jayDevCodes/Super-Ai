@@ -1,0 +1,372 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+import os
+from pathlib import Path
+import signal
+import subprocess
+import threading
+import time
+from typing import Callable, Mapping, Protocol
+
+from .sandbox import SandboxPlan
+
+
+class ExecutionError(RuntimeError):
+    """Raised when execution cannot be started or safely completed."""
+
+
+class ExecutionStatus(str, Enum):
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+    VERIFICATION_FAILED = "verification_failed"
+    CLEANUP_FAILED = "cleanup_failed"
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionPolicy:
+    """Runtime limits applied by the execution controller."""
+
+    timeout_seconds: float = 60.0
+    max_output_bytes: int = 1024 * 1024
+    max_error_bytes: int = 1024 * 1024
+    termination_grace_seconds: float = 2.0
+
+    def validate(self) -> None:
+        if self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be > 0")
+        if self.max_output_bytes <= 0:
+            raise ValueError("max_output_bytes must be > 0")
+        if self.max_error_bytes <= 0:
+            raise ValueError("max_error_bytes must be > 0")
+        if self.termination_grace_seconds < 0:
+            raise ValueError("termination_grace_seconds must be >= 0")
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionResult:
+    """Bounded result record for one sandbox execution."""
+
+    status: ExecutionStatus
+    exit_code: int | None
+    stdout: str
+    stderr: str
+    duration_seconds: float
+    timed_out: bool
+    stdout_truncated: bool
+    stderr_truncated: bool
+    verified: bool | None
+    cleanup_completed: bool
+
+
+class ProcessHandle(Protocol):
+    """Minimal process lifecycle contract used by the controller."""
+
+    @property
+    def returncode(self) -> int | None:
+        ...
+
+    def poll(self) -> int | None:
+        ...
+
+    def terminate(self) -> None:
+        ...
+
+    def kill(self) -> None:
+        ...
+
+    def wait(self, timeout: float | None = None) -> int:
+        ...
+
+    def stdout(self):  # type: ignore[no-untyped-def]
+        ...
+
+    def stderr(self):  # type: ignore[no-untyped-def]
+        ...
+
+
+class ProcessLauncher(Protocol):
+    """Launches an already-sandboxed argv without a shell."""
+
+    def launch(
+        self,
+        command: tuple[str, ...],
+        *,
+        cwd: Path,
+        environment: Mapping[str, str],
+    ) -> ProcessHandle:
+        ...
+
+
+class ExecutionVerifier(Protocol):
+    """Checks an execution result before it is accepted."""
+
+    def verify(self, result: ExecutionResult) -> bool:
+        ...
+
+
+CleanupCallback = Callable[[], None]
+
+
+@dataclass(slots=True)
+class _OutputCapture:
+    limit: int
+    chunks: bytearray
+    truncated: bool = False
+
+    def read_from(self, stream) -> None:  # type: ignore[no-untyped-def]
+        try:
+            while True:
+                chunk = stream.read(64 * 1024)
+                if not chunk:
+                    return
+                remaining = self.limit - len(self.chunks)
+                if remaining > 0:
+                    self.chunks.extend(chunk[:remaining])
+                if len(chunk) > remaining:
+                    self.truncated = True
+        except Exception:
+            self.truncated = True
+
+    def text(self) -> str:
+        return bytes(self.chunks).decode("utf-8", errors="replace")
+
+
+class SubprocessLauncher:
+    """Host launcher for a command that is already sandboxed by another layer.
+
+    It never invokes a shell and inherits only the explicit environment supplied
+    by the execution controller.
+    """
+
+    def launch(
+        self,
+        command: tuple[str, ...],
+        *,
+        cwd: Path,
+        environment: Mapping[str, str],
+    ) -> ProcessHandle:
+        if not command:
+            raise ExecutionError("command must not be empty")
+        cwd = Path(cwd).resolve()
+        if not cwd.is_dir():
+            raise ExecutionError("execution cwd must be an existing directory")
+        try:
+            return subprocess.Popen(
+                list(command),
+                cwd=cwd,
+                env=dict(environment),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                start_new_session=(os.name == "posix"),
+                close_fds=True,
+            )
+        except OSError as exc:
+            raise ExecutionError("sandbox process launch failed") from exc
+
+
+class ExecutionController:
+    """Runs sandbox plans with bounded output, timeout, verification, and cleanup."""
+
+    def __init__(
+        self,
+        launcher: ProcessLauncher | None = None,
+        environment: Mapping[str, str] | None = None,
+    ) -> None:
+        self._launcher = launcher or SubprocessLauncher()
+        self._environment = {
+            "PATH": os.environ.get(
+                "PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
+            )
+        }
+        if environment is not None:
+            self._environment.update(environment)
+
+    def run(
+        self,
+        plan: SandboxPlan,
+        *,
+        policy: ExecutionPolicy | None = None,
+        verifier: ExecutionVerifier | None = None,
+        cleanup: CleanupCallback | None = None,
+    ) -> ExecutionResult:
+        active_policy = policy or ExecutionPolicy(
+            timeout_seconds=plan.policy.timeout_seconds
+        )
+        active_policy.validate()
+
+        if not plan.execution_ready:
+            raise ExecutionError(
+                "sandbox plan is not execution-ready; verified network/isolation policy required"
+            )
+
+        if not plan.command:
+            raise ExecutionError("sandbox plan command must not be empty")
+
+        started = time.monotonic()
+        stdout_capture = _OutputCapture(active_policy.max_output_bytes, bytearray())
+        stderr_capture = _OutputCapture(active_policy.max_error_bytes, bytearray())
+        process: ProcessHandle | None = None
+        readers: list[threading.Thread] = []
+        timed_out = False
+        cleanup_completed = False
+        exit_code: int | None = None
+
+        try:
+            process = self._launcher.launch(
+                plan.command,
+                cwd=plan.output_path,
+                environment=self._environment,
+            )
+
+            stdout_stream = process.stdout()
+            stderr_stream = process.stderr()
+            if stdout_stream is None or stderr_stream is None:
+                raise ExecutionError("sandbox process did not expose stdout/stderr pipes")
+
+            readers = [
+                threading.Thread(
+                    target=stdout_capture.read_from,
+                    args=(stdout_stream,),
+                    daemon=True,
+                    name="super-ai-stdout-reader",
+                ),
+                threading.Thread(
+                    target=stderr_capture.read_from,
+                    args=(stderr_stream,),
+                    daemon=True,
+                    name="super-ai-stderr-reader",
+                ),
+            ]
+            for reader in readers:
+                reader.start()
+
+            try:
+                exit_code = process.wait(timeout=active_policy.timeout_seconds)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                self._terminate_process(
+                    process,
+                    active_policy.termination_grace_seconds,
+                )
+                try:
+                    exit_code = process.wait(timeout=active_policy.termination_grace_seconds)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    exit_code = process.wait(timeout=active_policy.termination_grace_seconds)
+
+            for reader in readers:
+                reader.join(
+                    timeout=active_policy.termination_grace_seconds
+                    + 0.5
+                )
+
+            status = (
+                ExecutionStatus.TIMED_OUT
+                if timed_out
+                else (
+                    ExecutionStatus.COMPLETED
+                    if exit_code == 0
+                    else ExecutionStatus.FAILED
+                )
+            )
+
+            provisional = ExecutionResult(
+                status=status,
+                exit_code=exit_code,
+                stdout=stdout_capture.text(),
+                stderr=stderr_capture.text(),
+                duration_seconds=time.monotonic() - started,
+                timed_out=timed_out,
+                stdout_truncated=stdout_capture.truncated,
+                stderr_truncated=stderr_capture.truncated,
+                verified=None,
+                cleanup_completed=False,
+            )
+
+            verified: bool | None = None
+            final_status = provisional.status
+            if verifier is not None:
+                verified = bool(verifier.verify(provisional))
+                if not verified:
+                    final_status = ExecutionStatus.VERIFICATION_FAILED
+
+            result = ExecutionResult(
+                status=final_status,
+                exit_code=provisional.exit_code,
+                stdout=provisional.stdout,
+                stderr=provisional.stderr,
+                duration_seconds=provisional.duration_seconds,
+                timed_out=provisional.timed_out,
+                stdout_truncated=provisional.stdout_truncated,
+                stderr_truncated=provisional.stderr_truncated,
+                verified=verified,
+                cleanup_completed=False,
+            )
+
+            try:
+                if cleanup is not None:
+                    cleanup()
+                cleanup_completed = True
+            except Exception:
+                cleanup_completed = False
+                return ExecutionResult(
+                    status=ExecutionStatus.CLEANUP_FAILED,
+                    exit_code=result.exit_code,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    duration_seconds=result.duration_seconds,
+                    timed_out=result.timed_out,
+                    stdout_truncated=result.stdout_truncated,
+                    stderr_truncated=result.stderr_truncated,
+                    verified=result.verified,
+                    cleanup_completed=False,
+                )
+
+            return ExecutionResult(
+                status=result.status,
+                exit_code=result.exit_code,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                duration_seconds=result.duration_seconds,
+                timed_out=result.timed_out,
+                stdout_truncated=result.stdout_truncated,
+                stderr_truncated=result.stderr_truncated,
+                verified=result.verified,
+                cleanup_completed=cleanup_completed,
+            )
+        finally:
+            if process is not None and process.poll() is None:
+                self._terminate_process(process, active_policy.termination_grace_seconds)
+            for reader in readers:
+                reader.join(timeout=0.2)
+
+    @staticmethod
+    def _terminate_process(
+        process: ProcessHandle,
+        grace_seconds: float,
+    ) -> None:
+        if process.poll() is not None:
+            return
+
+        if os.name == "posix" and isinstance(process, subprocess.Popen):
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                return
+            except OSError:
+                process.terminate()
+        else:
+            process.terminate()
+
+        if grace_seconds <= 0:
+            return
+
+        try:
+            process.wait(timeout=grace_seconds)
+        except subprocess.TimeoutExpired:
+            return
