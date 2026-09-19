@@ -20,11 +20,13 @@ class FakeStager:
 
     def stage(self, manifest, plan, workdir):
         self.calls.append(manifest.capability_id)
+        target = Path(workdir) / "cap"
+        target.mkdir(parents=True, exist_ok=True)
         return StagedArtifact(
             capability_id=manifest.capability_id,
             pinned_commit="a" * 40,
             repository_root=Path(workdir),
-            target_path=Path(workdir) / "cap",
+            target_path=target,
             downloaded_bytes=1,
             extracted_bytes=1,
             sha256="b" * 64,
