@@ -35,3 +35,29 @@ Continuity policy introduced:
 - private chain-of-thought and secrets are excluded.
 
 Next intended engineering checkpoint: Step 32 — Harden runtime specs.
+
+## 2026-09-20 — autonomous checkpoint steps 32–131
+
+Branch/PR: autonomous/steps-32-131 / PR #47.
+Merge commit: 060a5e5b4570891e8b8a565aa0172d4ef7ba9f49.
+Scope: 100 roadmap steps, 32 through 131.
+
+Implementation decisions:
+- RuntimeSpecGuardian is additive and fail-closed; existing RuntimeSpec remains the compatibility boundary.
+- Supply-chain admission models immutable identity, signature/provenance/SBOM/dependency-lock evidence, revocation, mirrors, trust decisions, reconciliation, canonical fingerprints, and verification adapters.
+- Security posture is represented separately from runtime adapters and is translated into deterministic runtime intent.
+- ExecutionAdmissionGate composes runtime-spec, security, and optional third-party artifact admission.
+- CleanupGuard uses OwnershipFence so stale cleanup claims cannot remove a replaced resource.
+- Host-footprint defaults are modeled for the approximately 8 GB RAM / 256 GB storage target.
+
+Validation:
+- Branch CI run 170 was green for Python 3.11, 3.12, and 3.13.
+- Main post-merge CI run 171 was green.
+- Two introduced regressions were caught and repaired: wrong test import for fence classes, and literal backslash-n corruption in package exports. The failures remain recorded as engineering lessons instead of being hidden.
+
+Limitations:
+- Linux-hosted CI validates contract semantics; actual Apple Container behavior still requires compatible Apple hardware.
+- Signature verification remains a pluggable adapter boundary rather than a built-in cryptographic stack.
+- Mirror selection and registry reconciliation are deterministic control-plane components; downloading/executing third-party code remains a separate runtime concern.
+
+Next intended engineering checkpoint: Step 132 — Harden secret boundaries.

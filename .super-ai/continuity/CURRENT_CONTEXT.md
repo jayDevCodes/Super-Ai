@@ -1,8 +1,8 @@
 # Current Super-Ai Context Snapshot
 
-Snapshot point: main @ 628651d80357e6d98b2e422492a5d36a5cdc8474
-Autonomous checkpoint: step 31 complete; next step 32 — Harden runtime specs.
-Main CI status at the latest recorded checkpoint: green.
+Snapshot point: main @ 060a5e5b4570891e8b8a565aa0172d4ef7ba9f49 (PR #47 merge checkpoint)
+Autonomous checkpoint: steps 32–131 complete; next step 132 — Harden secret boundaries.
+Main CI status at the merge checkpoint: green (GitHub Actions run 171).
 
 ## Mission
 Build a modular personal AI that can decompose large tasks, select deterministic tools/specialized capabilities, execute untrusted third-party capability code only inside a least-privilege sandbox, verify outputs, clean up safely, and stay usable on approximately 8 GB RAM / 256 GB storage.
@@ -21,48 +21,34 @@ Build a modular personal AI that can decompose large tasks, select deterministic
 11. Reliable work per unit of resource is preferred over raw model size.
 
 ## Runtime pipeline
-Task → Brain/DAG → Router/Policy → Resource Admission/Lease → Immutable source resolver → Secure stager → Workspace/Output contracts → Sandbox plan → Container lifecycle/attestation → Execution controller/session → Verification → Cleanup → Audit/trace evidence.
+Task → Brain/DAG → Router/Policy → Resource Admission/Lease → Immutable Source Resolution → Secure Staging → Workspace/Output Contracts → Runtime Admission → Sandbox → Container Lifecycle/Attestation → Execution Controller/Session → Verification → Cleanup Fence → Audit/Trace Evidence.
 
-## Durable subsystems already present
-- core/contracts: capability, resources, scheduler, task, workspace contracts.
+## Durable subsystems
+- core/contracts: capability, resources, scheduler, task, workspace, output contracts.
 - core/brain: brain orchestration and runtime-step adapter.
 - core/router: deterministic capability routing.
 - core/planner: task DAG execution.
 - core/policy: capability/network/confirmation policy.
 - registry: manifest, runtime spec, resolver, catalog.
-- core/runtime: stager, sandbox, Apple Container executor, preflight, attestation, ownership, telemetry, session, execution controller, pipeline, integration smoke test.
-- core/security: secret-safe environment construction.
+- core/controlplane: RuntimeSpecGuardian, EngineConfig, deterministic control evidence.
+- core/runtime: stager, sandbox, Apple Container executor, preflight, attestation, ownership, telemetry, session, execution controller, pipeline, integration smoke test, admission gate, cleanup guard.
+- core/security: environment isolation, capability boundaries, network boundaries, secret scanner, security posture, quotas, evidence, hardening controller, ownership race fence, runtime-intent translation.
+- core/supplychain: artifact identity, signatures, provenance, SBOM, dependency locks, revocation, mirrors, trust policy/scoring, registry sync, canonical fingerprints, verification adapters, ArtifactStore, telemetry.
 - core/verification: composable fail-closed verifiers.
 - core/observability: immutable trace context.
 - core/audit: hash-chain audit evidence.
 - core/resource_feedback and core/recovery: feedback/retry foundations.
 - core/cache: artifact cache foundation.
 
-## Important step history
+## Completed checkpoint history
 Steps 1-10 established resource-aware scheduling, immutable capability loading/resolution, secure staging, sandbox contracts, execution control, leases/sessions, attestation/telemetry, real-runtime integration, and the initial autonomous engineering framework.
-Step 11: explicit RuntimeSpec contract.
-Step 12: Brain → Runtime adapter.
-Step 13: runtime policy enforcement.
-Step 14: immutable trace context.
-Step 15: Brain trace/audit correlation.
-Step 16: secret-safe sandbox environment.
-Step 17: composite verification.
-Step 18: trusted runtime audit events.
-Step 19: runtime trace propagation.
-Step 20: verification-required capability enforcement.
-Step 21: bounded execution metadata projection and benchmark.
-Step 22: RuntimeSpec validation benchmark.
-Step 23: ownership benchmark.
-Step 24: lifecycle benchmark.
-Step 25: image identity benchmark.
-Step 26: environment isolation integrated at the container boundary.
-Step 27: workspace contracts integrated from runtime request through sandbox plan/executor.
-Step 28: output contracts integrated and bounded filesystem evidence attached to execution results.
-Step 29: cancellation propagated through brain context → runtime request → session/controller.
-Step 30: keyed execution idempotency, semantic fingerprinting, replay bounds/conflict handling, and brain workspace stabilization.
-Step 31: hardened execution metadata with bounded/sanitized/versioned control-plane projection and strict digest/numeric handling.
+Steps 11-31 established RuntimeSpec contracts, Brain/runtime integration, policy enforcement, trace/audit correlation, secret-safe environment handling, required verification, execution metadata hardening, workspace/output contracts, cancellation, idempotency, and continuity memory.
+Steps 32-131 are now merged as the 100-step checkpoint:
+- 32-50: runtime-spec hardening, evidence, instrumentation, admission composition, and graduation.
+- 51-100: supply-chain identity/evidence, validation, benchmarks, reconciliation, hardening, instrumentation, and graduation.
+- 101-131: sandbox security posture, capabilities, syscall/filesystem/network/secret/process controls, quotas, race fencing, evidence, translation, integration, and fail-closed network policy.
 
-## Key merged commits for continuity
+## Key merged commits
 - Step 11: f5afa8339fbe11fa73c7b0829d9c59e2b31fa723
 - Step 12: c3eb8192b93867b809b8044130b7d2158f17c469
 - Step 13: bd64e4391425c74258b3d62bec73b218250e1210
@@ -84,20 +70,27 @@ Step 31: hardened execution metadata with bounded/sanitized/versioned control-pl
 - Step 29: 6fb190d9aa63a23f6d288643b960dae345a851e0
 - Step 30: 0a7620e605eeb8a4fc3909ce8bcb0a2b382a19b7
 - Step 31: 628651d80357e6d98b2e422492a5d36a5cdc8474
+- Steps 32-131 checkpoint merge: 060a5e5b4570891e8b8a565aa0172d4ef7ba9f49 (PR #47)
 
 ## Failure lessons worth retaining
 - Old unit tests can become the first regression signal after a contract is tightened; repair existing callers before adding new behavior.
 - CI logs must be inspected before assuming a failure is caused by the current feature.
 - Step 13 exposed stale tests after policy enforcement.
 - Step 20 exposed stale tests after verification became mandatory.
-- Step 26 initially failed because a test explicitly supplied HOME while also asserting HOME was absent from inherited environment; the test was corrected to model the actual allowlist boundary.
+- Step 26 exposed a test-model mismatch around explicit HOME and inherited-environment assertions.
+- Steps 32-131 exposed an incorrect test import for the new race-fence classes; CI run 159 caught it and the import was repaired before advancement.
+- The export layer was also corrupted once by literal backslash-n characters; CI runs 167/168 caught the syntax regression and both package init files were repaired before the checkpoint proceeded.
 - Apple Container behavioral claims cannot be fully proven by Linux-hosted CI; real Apple Silicon smoke tests remain opt-in on an actual compatible macOS host.
+- Supply-chain signature verification is intentionally pluggable; the core adapter does not claim to provide a cryptographic implementation itself.
 
-## Current known code-quality note
-core/runtime/execution.py currently contains one _with_runtime_data definition on main. A prior snapshot had a duplicate definition; this was checked again while preparing this handoff.
+## Validation evidence
+- Branch PR #47 completed with 15 commits, 59 changed files, 2282 additions, and 111 deletions before squash merge.
+- Final branch CI run 170 passed on Python 3.11, 3.12, and 3.13.
+- Main post-merge CI run 171 passed on the merged commit.
+- New unit tests cover control-plane configuration/specs, supply-chain evidence/policy/sync/verification, security posture/boundaries/evidence, cleanup fencing, admission composition, benchmarks, and telemetry.
 
 ## Next-step intent
-Step 32 is to harden RuntimeSpec validation without breaking the existing immutable registry/runtime contracts. Before starting it, audit open PRs, recent CI, current main, and this continuity folder. Research current authoritative runtime/image reference rules, implement the smallest compatible hardening, test, repair, document, merge, and checkpoint.
+Step 132 — Harden secret boundaries. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing secret boundary contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
 
 ## Never forget
 Do not rewrite history to make the project look cleaner. Preserve prior decisions and failures as learning signals. The next agent should build on the existing system instead of starting over.
