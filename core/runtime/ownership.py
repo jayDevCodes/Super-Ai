@@ -77,8 +77,8 @@ def verify_container_ownership(
             )
 
 
-def _decode_document(payload: bytes | str | Mapping[str, Any]) -> Any:
-    if isinstance(payload, dict):
+def _decode_document(payload: bytes | str | Mapping[str, Any] | list[Any]) -> Any:
+    if isinstance(payload, (dict, list)):
         return payload
     try:
         raw = payload.decode("utf-8") if isinstance(payload, bytes) else payload
