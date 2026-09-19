@@ -59,11 +59,10 @@ class RuntimeProbe:
             raise ValueError("timeout_seconds must be > 0")
         self._runner = runner or SubprocessContainerCommandRunner()
         self._cwd = cwd
-        self._environment = {
-            "PATH": os.environ.get(
-                "PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
-            )
-        }
+        self._environment = dict(os.environ)
+        self._environment.setdefault(
+            "PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
+        )
         if environment is not None:
             self._environment.update(environment)
         self._timeout_seconds = timeout_seconds
