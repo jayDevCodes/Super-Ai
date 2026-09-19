@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from core.contracts import OutputContract
 from registry.runtime import RuntimeSpec, RuntimeSpecError
 
 
@@ -30,6 +31,28 @@ class RuntimeSpecTests(unittest.TestCase):
                 image="alpine:3.22",
                 command=("/bin/sh",),
                 expected_image_digest="alpine:latest",
+            ).validate()
+
+    def test_output_contract_is_part_of_runtime_identity(self):
+        spec = RuntimeSpec(
+            image="alpine:3.22",
+            command=("/bin/sh",),
+            output_contract=OutputContract(
+                required_files=("result.txt",),
+                max_files=8,
+                max_total_bytes=1024,
+                max_single_file_bytes=512,
+            ),
+        )
+        spec.validate()
+        self.assertEqual(spec.output_contract.required_files, ("result.txt",))
+
+    def test_rejects_invalid_output_contract(self):
+        with self.assertRaises(RuntimeSpecError):
+            RuntimeSpec(
+                image="alpine:3.22",
+                command=("/bin/sh",),
+                output_contract=OutputContract(allow_symlinks=True),
             ).validate()
 
     def test_rejects_unsafe_command_token(self):
