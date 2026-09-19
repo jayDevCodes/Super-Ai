@@ -418,7 +418,6 @@ class AppleContainerExecutorTests(unittest.TestCase):
             output = Path(temp) / "output"
             output.mkdir()
             plan = self._plan(temp, source_path=Path(temp), output_path=output)
-            controller = ExecutionController(sandbox_executor=executor)
             handle = executor.launch(
                 plan,
                 cwd=output,
@@ -428,9 +427,6 @@ class AppleContainerExecutorTests(unittest.TestCase):
             handle.cleanup()
 
         self.assertTrue(handle.telemetry["sample_count"] >= 1)
-        result = controller.run(
-            self._plan(temp, source_path=Path(temp), output_path=output)
-        ) if False else None
         self.assertIn("network_activity_observed", handle.telemetry)
         self.assertFalse(handle.telemetry["network_activity_observed"])
 
