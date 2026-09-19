@@ -11,6 +11,7 @@ import time
 from typing import BinaryIO, Callable, Mapping, Protocol
 
 from .sandbox import SandboxPlan
+from core.security import build_sandbox_environment
 
 
 class ExecutionError(RuntimeError):
@@ -212,13 +213,7 @@ class ExecutionController:
             raise ValueError("choose launcher or sandbox_executor, not both")
         self._launcher = launcher
         self._sandbox_executor = sandbox_executor
-        self._environment = {
-            "PATH": os.environ.get(
-                "PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
-            )
-        }
-        if environment is not None:
-            self._environment.update(environment)
+        self._environment = build_sandbox_environment(environment)
 
     def run(
         self,
