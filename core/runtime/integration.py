@@ -9,6 +9,7 @@ from core.contracts import ResourceContract, ResourceScheduler
 from registry.runtime import RuntimeSpec
 
 from .admission import ExecutionAdmissionGate
+from .cleanup_guard import CleanupGuard
 from .execution import ExecutionController, ExecutionPolicy, ExecutionResult
 from .sandbox import AppleContainerSandbox, SandboxPolicy
 from .session import ExecutionSession
@@ -40,6 +41,7 @@ class CapabilitySmokeTest:
         self._controller = controller
         self._sandbox = sandbox or AppleContainerSandbox()
         self._admission_gate = admission_gate
+        self._cleanup_guard = CleanupGuard()
 
     def run(
         self,
@@ -111,17 +113,21 @@ class CapabilitySmokeTest:
 
             verification = _Verifier()
 
-        with ExecutionSession(
-            self._scheduler,
-            self._controller,
-            capability_id=staged.capability_id,
-            resource=resource,
-        ) as session:
-            execution = session.run(
-                plan,
-                policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
-                verifier=verification,
-            )
+        cleanup_claim = self._cleanup_guard.claim(str(output_path), staged.capability_id)
+        try:
+            with ExecutionSession(
+                self._scheduler,
+                self._controller,
+                capability_id=staged.capability_id,
+                resource=resource,
+            ) as session:
+                execution = session.run(
+                    plan,
+                    policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
+                    verifier=verification,
+                )
+        finally:
+            self._cleanup_guard.release(cleanup_claim)
 
         failures: list[str] = []
         if not execution.sandbox_attested:
