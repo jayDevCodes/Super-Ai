@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Callable, Sequence
@@ -8,6 +8,7 @@ from typing import Callable, Sequence
 from core.contracts import (
     CapabilitySpec,
     ResourceScheduler,
+    OutputContract,
     TaskConstraints,
     WorkspaceContract,
     WorkspaceContractError,
@@ -22,6 +23,7 @@ from .execution import (
     ExecutionController,
     ExecutionPolicy,
     ExecutionResult,
+    ExecutionStatus,
     ExecutionVerifier,
 )
 from .sandbox import AppleContainerSandbox, SandboxPolicy
@@ -46,6 +48,7 @@ class CapabilityExecutionRequest:
     expected_image_digest: str | None = None
     trace_context: TraceContext | None = None
     cancellation_token: CancellationToken | None = None
+    output_contract: OutputContract | None = None
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -56,6 +59,8 @@ class CapabilityExecutionRequest:
             raise ValueError("output_path must be provided")
         if self.workspace_root is None:
             raise ValueError("workspace_root must be provided")
+        if self.output_contract is not None:
+            self.output_contract.validate()
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0 when provided")
 
@@ -149,6 +154,19 @@ class CapabilityRuntime:
         if timeout_seconds <= 0:
             raise CapabilityPipelineError("execution timeout must be > 0")
 
+        output_contract = request.output_contract
+        runtime_spec = getattr(manifest, "runtime", None)
+        if output_contract is None and runtime_spec is not None:
+            output_contract = runtime_spec.output_contract
+        if output_contract is None:
+            output_contract = OutputContract()
+        try:
+            output_contract.validate()
+        except ValueError as exc:
+            raise CapabilityPipelineError(
+                f"output contract rejected execution: {exc}"
+            ) from exc
+
         workspace_root = Path(request.workspace_root).expanduser()
         try:
             workspace_root.mkdir(parents=True, exist_ok=True)
@@ -234,6 +252,18 @@ class CapabilityRuntime:
                     policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
                     verifier=verifier,
                     cancellation_token=request.cancellation_token,
+                )
+
+            inspection = output_contract.inspect(output_path)
+            result = replace(result, output_inspection=inspection)
+            if (
+                not inspection.passed
+                and result.status is ExecutionStatus.COMPLETED
+            ):
+                result = replace(
+                    result,
+                    status=ExecutionStatus.VERIFICATION_FAILED,
+                    verified=False,
                 )
 
             self._record(

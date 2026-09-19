@@ -4,7 +4,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from core.contracts import CapabilitySpec, ResourceContract, ResourceScheduler, ResourceSnapshot, TaskConstraints
+from core.contracts import (
+    CapabilitySpec,
+    OutputContract,
+    ResourceContract,
+    ResourceScheduler,
+    ResourceSnapshot,
+    TaskConstraints,
+)
 from registry.manifest import ArtifactSpec, CapabilityManifest
 from core.runtime.cancellation import CancellationToken
 from core.runtime.execution import ExecutionController, ExecutionResult, ExecutionStatus
@@ -34,6 +41,7 @@ class FakeStager:
 class FakeController:
     def __init__(self):
         self.calls = []
+        self.write_result = False
 
     def run(
         self,
@@ -45,6 +53,9 @@ class FakeController:
         cancellation_token=None,
     ):
         self.calls.append((plan, policy, verifier, cancellation_token))
+        if self.write_result:
+            plan.output_path.mkdir(parents=True, exist_ok=True)
+            (plan.output_path / "result.txt").write_text("result", encoding="utf-8")
         return ExecutionResult(
             status=ExecutionStatus.COMPLETED,
             exit_code=0,
@@ -261,6 +272,137 @@ class PipelineTests(unittest.TestCase):
             )
 
         self.assertIs(controller.calls[0][3], token)
+
+
+    def test_manifest_output_contract_is_enforced_on_completed_execution(self):
+        from core.runtime.stager import StagedArtifact
+        from registry.runtime import RuntimeSpec
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "source"
+            target = source / "cap"
+            target.mkdir(parents=True)
+            output = root / "output"
+            staged = StagedArtifact(
+                capability_id="demo",
+                pinned_commit="a" * 40,
+                repository_root=source,
+                target_path=target,
+                downloaded_bytes=1,
+                extracted_bytes=1,
+                sha256="b" * 64,
+            )
+            controller = FakeController()
+            controller.write_result = True
+            runtime = CapabilityRuntime(
+                scheduler=ResourceScheduler(
+                    ResourceSnapshot(
+                        total_ram_mb=4096,
+                        available_ram_mb=4096,
+                        free_disk_mb=8192,
+                        cpu_threads=4,
+                    )
+                ),
+                stager=FakeStager(staged),
+                controller=controller,
+            )
+            spec = CapabilitySpec(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                resource=ResourceContract(256, 512),
+            )
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+                runtime=RuntimeSpec(
+                    image="alpine:3.22",
+                    command=("true",),
+                    output_contract=OutputContract(required_files=("result.txt",)),
+                ),
+            )
+            result = runtime.execute(
+                manifest=manifest,
+                capability_spec=spec,
+                request=CapabilityExecutionRequest(
+                    image="alpine:3.22",
+                    command=("true",),
+                    output_path=output,
+                    workspace_root=root,
+                ),
+                verifier=lambda _: True,
+            )
+
+        self.assertTrue(result.result.output_inspection.passed)
+        self.assertEqual(result.result.output_inspection.file_count, 1)
+        self.assertEqual(result.result.status, ExecutionStatus.COMPLETED)
+
+    def test_explicit_output_contract_failure_fails_closed(self):
+        from core.runtime.stager import StagedArtifact
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "target"
+            target.mkdir()
+            staged = StagedArtifact(
+                capability_id="demo",
+                pinned_commit="a" * 40,
+                repository_root=root,
+                target_path=target,
+                downloaded_bytes=1,
+                extracted_bytes=1,
+                sha256="b" * 64,
+            )
+            controller = FakeController()
+            runtime = CapabilityRuntime(
+                scheduler=ResourceScheduler(
+                    ResourceSnapshot(
+                        total_ram_mb=4096,
+                        available_ram_mb=4096,
+                        free_disk_mb=8192,
+                        cpu_threads=4,
+                    )
+                ),
+                stager=FakeStager(staged),
+                controller=controller,
+            )
+            spec = CapabilitySpec(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                resource=ResourceContract(256, 512),
+            )
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+            )
+            result = runtime.execute(
+                manifest=manifest,
+                capability_spec=spec,
+                request=CapabilityExecutionRequest(
+                    image="alpine:3.22",
+                    command=("true",),
+                    output_path=root / "output",
+                    workspace_root=root,
+                    output_contract=OutputContract(required_files=("required.txt",)),
+                ),
+                verifier=lambda _: True,
+            )
+
+        self.assertFalse(result.result.output_inspection.passed)
+        self.assertEqual(result.result.status, ExecutionStatus.VERIFICATION_FAILED)
+        self.assertFalse(result.result.verified)
 
     def test_request_validation_rejects_empty_command(self):
         with self.assertRaises(ValueError):

@@ -62,6 +62,16 @@ class CapabilityRegistryTests(unittest.TestCase):
                         "repository_url": entry.manifest.artifact.repository_url,
                         "pinned_commit": entry.manifest.artifact.pinned_commit,
                     },
+                    "runtime": {
+                        "image": "alpine:3.22",
+                        "command": ["/bin/sh", "-c", "echo ok"],
+                        "output_contract": {
+                            "required_files": ["result.txt"],
+                            "max_files": 8,
+                            "max_total_bytes": 1024,
+                            "max_single_file_bytes": 512,
+                        },
+                    },
                 },
                 "spec": {
                     "capability_id": entry.spec.capability_id,
@@ -79,7 +89,16 @@ class CapabilityRegistryTests(unittest.TestCase):
             path = Path(temp) / "registry.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
             loaded = CapabilityRegistry.from_json(path)
-        self.assertEqual(loaded.get("browser.read", "1.0.0"), entry)
+        loaded_entry = loaded.get("browser.read", "1.0.0")
+        self.assertEqual(
+            loaded_entry.manifest.runtime.output_contract.required_files,
+            ("result.txt",),
+        )
+        self.assertEqual(
+            loaded_entry.manifest.runtime.output_contract.max_files,
+            8,
+        )
+        self.assertEqual(loaded_entry.manifest.capability_id, entry.manifest.capability_id)
 
 
 if __name__ == "__main__":

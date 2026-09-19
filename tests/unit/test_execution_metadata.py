@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from benchmarks.benchmark_execution_metadata import benchmark
+from core.contracts import OutputInspection
 from core.runtime.execution import ExecutionResult, ExecutionStatus
 
 
@@ -22,6 +23,13 @@ class ExecutionMetadataTests(unittest.TestCase):
             sandbox_attested=True,
             sandbox_image_digest="sha256:" + "a" * 64,
             telemetry={"network_activity_observed": False},
+            output_inspection=OutputInspection(
+                passed=True,
+                file_count=1,
+                total_bytes=2,
+                missing_required=(),
+                violations=(),
+            ),
         )
 
     def test_metadata_projection_is_bounded_and_excludes_payloads(self):
@@ -33,6 +41,8 @@ class ExecutionMetadataTests(unittest.TestCase):
         self.assertNotIn("stderr", metadata)
         self.assertNotIn("telemetry", metadata)
         self.assertEqual(len(metadata["sandbox_image_digest"]), 71)
+        self.assertEqual(metadata["output"]["file_count"], 1)
+        self.assertEqual(metadata["output"]["passed"], True)
 
     def test_benchmark_returns_expected_operations(self):
         results = benchmark(iterations=100, warmup=10)

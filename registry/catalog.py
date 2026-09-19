@@ -5,7 +5,11 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from core.contracts import CapabilitySpec, ResourceContract
+from core.contracts import (
+    CapabilitySpec,
+    OutputContract,
+    ResourceContract,
+)
 from .manifest import ArtifactSpec, CapabilityManifest
 from .runtime import RuntimeSpec
 
@@ -174,6 +178,27 @@ def _entry_from_json(raw: Any) -> RegistryEntry:
                 isinstance(value, str) for value in command_raw
             ):
                 raise RegistryError("manifest runtime command must be an array of strings")
+            output_raw = runtime_raw.get("output_contract", {})
+            if not isinstance(output_raw, Mapping):
+                raise RegistryError("manifest runtime output_contract must be an object")
+            required_raw = output_raw.get("required_files", [])
+            if not isinstance(required_raw, list) or not all(
+                isinstance(value, str) for value in required_raw
+            ):
+                raise RegistryError(
+                    "manifest runtime output_contract required_files must be an array of strings"
+                )
+            output_contract = OutputContract(
+                required_files=tuple(required_raw),
+                max_files=int(output_raw.get("max_files", 256)),
+                max_total_bytes=int(
+                    output_raw.get("max_total_bytes", 64 * 1024 * 1024)
+                ),
+                max_single_file_bytes=int(
+                    output_raw.get("max_single_file_bytes", 16 * 1024 * 1024)
+                ),
+                allow_symlinks=bool(output_raw.get("allow_symlinks", False)),
+            )
             runtime = RuntimeSpec(
                 image=str(runtime_raw["image"]),
                 command=tuple(command_raw),
@@ -186,6 +211,7 @@ def _entry_from_json(raw: Any) -> RegistryEntry:
                 working_directory=str(
                     runtime_raw.get("working_directory", "/workspace")
                 ),
+                output_contract=output_contract,
             )
         manifest = CapabilityManifest(
             capability_id=str(manifest_raw["capability_id"]),

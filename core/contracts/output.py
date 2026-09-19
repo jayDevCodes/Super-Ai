@@ -54,9 +54,9 @@ class OutputContract:
                 )
             if (
                 path.startswith(("/", "\\"))
-                or "\\x00" in path
-                or "\\r" in path
-                or "\\n" in path
+                or "\x00" in path
+                or "\r" in path
+                or "\n" in path
             ):
                 raise OutputContractError(
                     "required output paths must be relative and free of control characters"
@@ -100,6 +100,10 @@ class OutputContract:
         file_count = 0
         total_bytes = 0
 
+        def add_violation(message: str) -> None:
+            if len(violations) < 32:
+                violations.append(message)
+
         for current_root, dirnames, filenames in os.walk(
             root,
             topdown=True,
@@ -110,7 +114,7 @@ class OutputContract:
             for dirname in list(dirnames):
                 path = current / dirname
                 if path.is_symlink():
-                    violations.append("symlink directory is not permitted")
+                    add_violation("symlink directory is not permitted")
                     dirnames.remove(dirname)
 
             for filename in filenames:
@@ -118,32 +122,38 @@ class OutputContract:
                 try:
                     relative = path.relative_to(root).as_posix()
                     if path.is_symlink():
-                        violations.append(f"symlink file is not permitted: {relative}")
+                        add_violation(f"symlink file is not permitted: {relative}")
                         continue
                     if not path.is_file():
-                        violations.append(f"non-regular output entry: {relative}")
+                        add_violation(f"non-regular output entry: {relative}")
                         continue
                     size = path.stat().st_size
                 except OSError:
-                    violations.append("output entry could not be inspected safely")
+                    add_violation("output entry could not be inspected safely")
                     continue
 
+                if size > self.max_single_file_bytes:
+                    add_violation(
+                        f"output file exceeds per-file limit: {relative}"
+                    )
                 file_count += 1
                 total_bytes += size
-
-                if file_count > self.max_files:
-                    violations.append("output file count exceeds contract")
-                if size > self.max_single_file_bytes:
-                    violations.append(f"output file exceeds per-file limit: {relative}")
-                if total_bytes > self.max_total_bytes:
-                    violations.append("output total size exceeds contract")
-
                 if relative in required:
                     seen_required.add(relative)
 
+                if file_count > self.max_files:
+                    add_violation("output file count exceeds contract")
+                    break
+                if total_bytes > self.max_total_bytes:
+                    add_violation("output total size exceeds contract")
+                    break
+
+            if file_count > self.max_files or total_bytes > self.max_total_bytes:
+                break
+
         missing = tuple(sorted(required - seen_required))
         if missing:
-            violations.append("required output files are missing")
+            add_violation("required output files are missing")
 
         return OutputInspection(
             passed=not violations,

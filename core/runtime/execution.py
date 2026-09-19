@@ -13,6 +13,7 @@ from typing import BinaryIO, Callable, Mapping, Protocol
 from .sandbox import SandboxPlan
 from .cancellation import CancellationToken
 from core.security import build_sandbox_environment
+from core.contracts import OutputInspection
 
 
 class ExecutionError(RuntimeError):
@@ -66,6 +67,7 @@ class ExecutionResult:
     sandbox_image_digest: str | None = None
     telemetry: Mapping[str, object] | None = None
     cancellation_reason: str | None = None
+    output_inspection: OutputInspection | None = None
 
     def as_metadata(self) -> dict[str, object]:
         """Return a bounded, secret-safe projection for control-plane metadata.
@@ -85,6 +87,17 @@ class ExecutionResult:
             "sandbox_attested": self.sandbox_attested,
             "sandbox_image_digest": self.sandbox_image_digest,
             "cancellation_reason": self.cancellation_reason,
+            "output": (
+                None
+                if self.output_inspection is None
+                else {
+                    "passed": self.output_inspection.passed,
+                    "file_count": self.output_inspection.file_count,
+                    "total_bytes": self.output_inspection.total_bytes,
+                    "missing_required": list(self.output_inspection.missing_required),
+                    "violations": list(self.output_inspection.violations)[:32],
+                }
+            ),
         }
 
 
@@ -493,6 +506,7 @@ def _with_runtime_data(
         sandbox_image_digest=image_digest,
         telemetry=telemetry,
         cancellation_reason=result.cancellation_reason,
+        output_inspection=result.output_inspection,
     )
 
 
@@ -522,4 +536,5 @@ def _with_status(
         cancellation_reason=result.cancellation_reason,
         sandbox_image_digest=result.sandbox_image_digest,
         telemetry=result.telemetry,
+        output_inspection=result.output_inspection,
     )
