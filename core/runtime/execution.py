@@ -199,6 +199,11 @@ class ExecutionController:
         )
         active_policy.validate()
 
+        if active_policy.timeout_seconds > plan.policy.timeout_seconds:
+            raise ExecutionError(
+                "execution timeout cannot exceed the sandbox timeout"
+            )
+
         if not plan.execution_ready:
             raise ExecutionError(
                 "sandbox plan is not execution-ready; verified network/isolation policy required"
@@ -213,8 +218,9 @@ class ExecutionController:
         process: ProcessHandle | None = None
         readers: list[threading.Thread] = []
         timed_out = False
-        cleanup_completed = False
-        exit_code: int | None = None
+        result: ExecutionResult | None = None
+        execution_error: Exception | None = None
+        cleanup_error: Exception | None = None
 
         try:
             process = self._launcher.launch(
@@ -249,20 +255,20 @@ class ExecutionController:
                 exit_code = process.wait(timeout=active_policy.timeout_seconds)
             except subprocess.TimeoutExpired:
                 timed_out = True
-                self._terminate_process(
-                    process,
-                    active_policy.termination_grace_seconds,
-                )
+                self._request_termination(process)
                 try:
-                    exit_code = process.wait(timeout=active_policy.termination_grace_seconds)
+                    exit_code = process.wait(
+                        timeout=active_policy.termination_grace_seconds
+                    )
                 except subprocess.TimeoutExpired:
                     process.kill()
-                    exit_code = process.wait(timeout=active_policy.termination_grace_seconds)
+                    exit_code = process.wait(
+                        timeout=max(active_policy.termination_grace_seconds, 0.1)
+                    )
 
             for reader in readers:
                 reader.join(
-                    timeout=active_policy.termination_grace_seconds
-                    + 0.5
+                    timeout=active_policy.termination_grace_seconds + 0.5
                 )
 
             status = (
@@ -275,7 +281,7 @@ class ExecutionController:
                 )
             )
 
-            provisional = ExecutionResult(
+            result = ExecutionResult(
                 status=status,
                 exit_code=exit_code,
                 stdout=stdout_capture.text(),
@@ -288,85 +294,99 @@ class ExecutionController:
                 cleanup_completed=False,
             )
 
-            verified: bool | None = None
-            final_status = provisional.status
             if verifier is not None:
-                verified = bool(verifier.verify(provisional))
+                try:
+                    verified = bool(verifier.verify(result))
+                except Exception:
+                    verified = False
                 if not verified:
-                    final_status = ExecutionStatus.VERIFICATION_FAILED
+                    result = _with_status(
+                        result,
+                        ExecutionStatus.VERIFICATION_FAILED,
+                        verified=False,
+                    )
+                else:
+                    result = _with_status(result, result.status, verified=True)
 
-            result = ExecutionResult(
-                status=final_status,
-                exit_code=provisional.exit_code,
-                stdout=provisional.stdout,
-                stderr=provisional.stderr,
-                duration_seconds=provisional.duration_seconds,
-                timed_out=provisional.timed_out,
-                stdout_truncated=provisional.stdout_truncated,
-                stderr_truncated=provisional.stderr_truncated,
-                verified=verified,
-                cleanup_completed=False,
-            )
-
-            try:
-                if cleanup is not None:
-                    cleanup()
-                cleanup_completed = True
-            except Exception:
-                cleanup_completed = False
-                return ExecutionResult(
-                    status=ExecutionStatus.CLEANUP_FAILED,
-                    exit_code=result.exit_code,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
-                    duration_seconds=result.duration_seconds,
-                    timed_out=result.timed_out,
-                    stdout_truncated=result.stdout_truncated,
-                    stderr_truncated=result.stderr_truncated,
-                    verified=result.verified,
-                    cleanup_completed=False,
-                )
-
-            return ExecutionResult(
-                status=result.status,
-                exit_code=result.exit_code,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                duration_seconds=result.duration_seconds,
-                timed_out=result.timed_out,
-                stdout_truncated=result.stdout_truncated,
-                stderr_truncated=result.stderr_truncated,
-                verified=result.verified,
-                cleanup_completed=cleanup_completed,
-            )
+        except Exception as exc:
+            execution_error = exc if isinstance(exc, Exception) else Exception(str(exc))
         finally:
             if process is not None and process.poll() is None:
-                self._terminate_process(process, active_policy.termination_grace_seconds)
+                self._request_termination(process)
+                try:
+                    process.wait(timeout=max(active_policy.termination_grace_seconds, 0.1))
+                except subprocess.TimeoutExpired:
+                    try:
+                        process.kill()
+                        process.wait(timeout=0.5)
+                    except (OSError, subprocess.TimeoutExpired):
+                        pass
+
             for reader in readers:
-                reader.join(timeout=0.2)
+                reader.join(timeout=max(active_policy.termination_grace_seconds, 0.2))
+
+            if cleanup is not None:
+                try:
+                    cleanup()
+                except Exception as exc:
+                    cleanup_error = exc
+
+        if cleanup_error is not None:
+            if result is not None:
+                return _with_status(
+                    result,
+                    ExecutionStatus.CLEANUP_FAILED,
+                    cleanup_completed=False,
+                )
+            raise ExecutionError("execution cleanup failed") from cleanup_error
+
+        if execution_error is not None:
+            raise execution_error
+
+        if result is None:
+            raise ExecutionError("execution produced no result")
+
+        return _with_status(
+            result,
+            result.status,
+            cleanup_completed=True,
+        )
 
     @staticmethod
-    def _terminate_process(
-        process: ProcessHandle,
-        grace_seconds: float,
-    ) -> None:
+    def _request_termination(process: ProcessHandle) -> None:
         if process.poll() is not None:
             return
 
         if os.name == "posix" and isinstance(process, subprocess.Popen):
             try:
                 os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
                 return
-            except OSError:
-                process.terminate()
-        else:
-            process.terminate()
+            except (ProcessLookupError, OSError):
+                pass
 
-        if grace_seconds <= 0:
-            return
+        process.terminate()
 
-        try:
-            process.wait(timeout=grace_seconds)
-        except subprocess.TimeoutExpired:
-            return
+
+def _with_status(
+    result: ExecutionResult,
+    status: ExecutionStatus,
+    *,
+    verified: bool | None = None,
+    cleanup_completed: bool | None = None,
+) -> ExecutionResult:
+    return ExecutionResult(
+        status=status,
+        exit_code=result.exit_code,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        duration_seconds=result.duration_seconds,
+        timed_out=result.timed_out,
+        stdout_truncated=result.stdout_truncated,
+        stderr_truncated=result.stderr_truncated,
+        verified=result.verified if verified is None else verified,
+        cleanup_completed=(
+            result.cleanup_completed
+            if cleanup_completed is None
+            else cleanup_completed
+        ),
+    )
