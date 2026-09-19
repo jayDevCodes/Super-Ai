@@ -277,56 +277,56 @@ class CapabilityRuntime:
                 )
 
             try:
-plan = self._sandbox.build_plan(
-                image=request.image,
-                command=request.command,
-                source_path=staged.target_path,
-                output_path=output_path,
-                policy=sandbox_policy,
-                workspace=workspace,
-                expected_image_digest=request.expected_image_digest,
-            )
-
-            self._record(
-                "runtime.execution_started",
-                {
-                    "capability_id": capability_spec.capability_id,
-                    "version": capability_spec.version,
-                },
-                trace_context=trace.child(),
-            )
-
-            with ExecutionSession(
-                self._scheduler,
-                self._controller,
-                capability_id=capability_spec.capability_id,
-                resource=capability_spec.resource,
-                task_constraints=task_constraints,
-            ) as session:
-                result = session.run(
-                    plan,
-                    policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
-                    verifier=verifier,
-                    cancellation_token=request.cancellation_token,
+                plan = self._sandbox.build_plan(
+                    image=request.image,
+                    command=request.command,
+                    source_path=staged.target_path,
+                    output_path=output_path,
+                    policy=sandbox_policy,
+                    workspace=workspace,
+                    expected_image_digest=request.expected_image_digest,
                 )
 
-            inspection = output_contract.inspect(output_path)
-            result = replace(result, output_inspection=inspection)
-            if (
-                not inspection.passed
-                and result.status is ExecutionStatus.COMPLETED
-            ):
-                result = replace(
-                    result,
-                    status=ExecutionStatus.VERIFICATION_FAILED,
-                    verified=False,
+                self._record(
+                    "runtime.execution_started",
+                    {
+                        "capability_id": capability_spec.capability_id,
+                        "version": capability_spec.version,
+                    },
+                    trace_context=trace.child(),
                 )
+
+                with ExecutionSession(
+                    self._scheduler,
+                    self._controller,
+                    capability_id=capability_spec.capability_id,
+                    resource=capability_spec.resource,
+                    task_constraints=task_constraints,
+                ) as session:
+                    result = session.run(
+                        plan,
+                        policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
+                        verifier=verifier,
+                        cancellation_token=request.cancellation_token,
+                    )
+
+                inspection = output_contract.inspect(output_path)
+                result = replace(result, output_inspection=inspection)
+                if (
+                    not inspection.passed
+                    and result.status is ExecutionStatus.COMPLETED
+                ):
+                    result = replace(
+                        result,
+                        status=ExecutionStatus.VERIFICATION_FAILED,
+                        verified=False,
+                    )
 
                 self._record(
                     "runtime.execution_finished",
                     {
                         "capability_id": capability_spec.capability_id,
-                        "version": result.status.value,
+                        "version": capability_spec.version,
                         "status": result.status.value,
                         "verified": result.verified,
                         "cleanup_completed": result.cleanup_completed,
