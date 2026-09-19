@@ -1,13 +1,7 @@
 import unittest
 
-from core.security.posture import (
-    FenceError,
-    NetworkEgress,
-    NetworkMode,
-    OwnershipFence,
-    SecurityAuditor,
-    SecurityProfile,
-)
+from core.security.posture import NetworkEgress, NetworkMode, SecurityAuditor, SecurityProfile
+from core.security.race import FenceError, OwnershipFence
 
 
 class SecurityPostureTests(unittest.TestCase):
