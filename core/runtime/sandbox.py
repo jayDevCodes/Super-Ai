@@ -35,9 +35,13 @@ class SandboxPolicy:
         if self.network not in {"disabled", "isolated", "enabled"}:
             raise ValueError("network must be disabled, isolated, or enabled")
         if self.network == "disabled" and self.network_name is not None:
-            raise ValueError("network_name is only valid for isolated/enabled networks")
+            raise ValueError(
+                "network_name is only valid for isolated/enabled networks"
+            )
         if self.network in {"isolated", "enabled"}:
-            if not self.network_name or not _NETWORK_NAME_RE.fullmatch(self.network_name):
+            if not self.network_name or not _NETWORK_NAME_RE.fullmatch(
+                self.network_name
+            ):
                 raise ValueError(
                     "network_name must be provided and contain only safe network characters"
                 )
@@ -65,7 +69,7 @@ class SandboxPlan:
 
 
 class SandboxBackend(Protocol):
-    """Planner/executor boundary for isolated capability execution."""
+    """Planner boundary for isolated capability execution."""
 
     def build_plan(
         self,
@@ -102,11 +106,11 @@ def _validate_command(command: tuple[str, ...]) -> tuple[str, ...]:
 
 
 class AppleContainerSandbox:
-    """Build a hardened Apple container run plan without executing it.
+    """Build hardened Apple Container plans without executing them.
 
-    The current implementation intentionally stops at plan generation. A future
-    executor must provide exact network isolation semantics and lifecycle
-    cleanup before arbitrary third-party source is launched.
+    The plan explicitly requests network=none for the default disabled-network
+    posture. The executor independently validates this exact invariant before
+    a container is started.
     """
 
     backend_name = "apple-container"
@@ -131,10 +135,80 @@ class AppleContainerSandbox:
         if source == output:
             raise SandboxError("source_path and output_path must be different")
 
+        args = self._build_run_args(
+            image=image,
+            command=command,
+            source=source,
+            output=output,
+            policy=policy,
+        )
+        args.insert(2, "--rm")
+
+        if policy.network == "disabled":
+            execution_ready = True
+            note = (
+                "Default network posture is disabled with explicit --network none; "
+                "the Apple Container executor must verify this exact flag before start."
+            )
+        else:
+            execution_ready = True
+            note = "Network access is explicitly enabled by policy."
+
+        return SandboxPlan(
+            backend=self.backend_name,
+            image=image,
+            command=tuple([*args, image, *command]),
+            source_path=source,
+            output_path=output,
+            policy=policy,
+            execution_ready=execution_ready,
+            safety_note=note,
+        )
+
+    def build_create_command(
+        self,
+        plan: SandboxPlan,
+        *,
+        container_id: str,
+    ) -> tuple[str, ...]:
+        """Translate a validated plan into an explicit container create command."""
+        if plan.backend != self.backend_name:
+            raise SandboxError(
+                f"plan backend {plan.backend!r} is not {self.backend_name!r}"
+            )
+        if not container_id or not _CONTAINER_ID_RE.fullmatch(container_id):
+            raise SandboxError("container_id contains unsupported characters")
+
+        plan.policy.validate()
+        if plan.source_path == plan.output_path:
+            raise SandboxError("source_path and output_path must be different")
+
+        inner_command = _extract_inner_command(plan)
+        args = self._build_run_args(
+            image=plan.image,
+            command=inner_command,
+            source=plan.source_path,
+            output=plan.output_path,
+            policy=plan.policy,
+        )
+
+        args[1] = "create"
+        args.insert(2, "--name")
+        args.insert(3, container_id)
+        return tuple([*args, plan.image, *inner_command])
+
+    @staticmethod
+    def _build_run_args(
+        *,
+        image: str,
+        command: tuple[str, ...],
+        source: Path,
+        output: Path,
+        policy: SandboxPolicy,
+    ) -> list[str]:
         args: list[str] = [
             "container",
             "run",
-            "--rm",
             "--read-only",
             "--init",
             "--cap-drop",
@@ -153,30 +227,31 @@ class AppleContainerSandbox:
             "/workspace",
         ]
 
+        if policy.root_filesystem_read_only is False:
+            raise SandboxError(
+                "AppleContainerSandbox requires root_filesystem_read_only=True"
+            )
+
         if policy.run_as_user is not None:
             args.extend(["--user", policy.run_as_user])
 
-        if policy.network in {"isolated", "enabled"}:
+        if policy.network == "disabled":
+            args.extend(["--network", "none", "--no-dns"])
+        else:
             args.extend(["--network", policy.network_name or ""])
 
-        execution_ready = policy.network != "disabled"
-        note = ""
-        if not execution_ready:
-            note = (
-                "Execution remains disabled: the planner does not invent a "
-                "network=none flag. A future executor must establish and verify "
-                "true network denial before launching untrusted source."
-            )
+        return args
 
-        args.extend([image, *command])
 
-        return SandboxPlan(
-            backend=self.backend_name,
-            image=image,
-            command=tuple(args),
-            source_path=source,
-            output_path=output,
-            policy=policy,
-            execution_ready=execution_ready,
-            safety_note=note,
-        )
+_CONTAINER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
+
+
+def _extract_inner_command(plan: SandboxPlan) -> tuple[str, ...]:
+    """Recover the intended in-container argv from an Apple Container plan."""
+    try:
+        image_index = plan.command.index(plan.image)
+    except ValueError as exc:
+        raise SandboxError("sandbox plan does not contain its declared image") from exc
+
+    command = plan.command[image_index + 1 :]
+    return _validate_command(tuple(command))

@@ -1,3 +1,24 @@
+from .container_executor import (
+    AppleContainerExecutor,
+    AppleContainerProcessHandle,
+    CommandResult,
+    ContainerCommandRunner,
+    SandboxExecutionError,
+    SubprocessContainerCommandRunner,
+)
+from .execution import (
+    ExecutionController,
+    ExecutionError,
+    ExecutionPolicy,
+    ExecutionResult,
+    ExecutionStatus,
+    ExecutionVerifier,
+    ProcessHandle,
+    ProcessLauncher,
+    SandboxExecutor,
+    SandboxProcessHandle,
+    SubprocessLauncher,
+)
 from .loader import (
     CapabilityLoader,
     LoaderState,
@@ -5,6 +26,14 @@ from .loader import (
     LoadError,
     UntrustedSourceError,
 )
+from .sandbox import (
+    AppleContainerSandbox,
+    SandboxBackend,
+    SandboxError,
+    SandboxPlan,
+    SandboxPolicy,
+)
+from .session import ExecutionSession, ExecutionSessionError
 from .stager import (
     ArchiveTransport,
     CapabilityStager,
@@ -15,37 +44,39 @@ from .stager import (
 )
 
 __all__ = [
+    "AppleContainerExecutor",
+    "AppleContainerProcessHandle",
+    "AppleContainerSandbox",
     "ArchiveTransport",
     "CapabilityLoader",
     "CapabilityStager",
+    "CommandResult",
+    "ContainerCommandRunner",
+    "ExecutionController",
+    "ExecutionError",
+    "ExecutionPolicy",
+    "ExecutionResult",
+    "ExecutionSession",
+    "ExecutionSessionError",
+    "ExecutionStatus",
+    "ExecutionVerifier",
+    "LoadError",
     "LoaderState",
     "LoadedCapability",
-    "LoadError",
+    "ProcessHandle",
+    "ProcessLauncher",
+    "SandboxBackend",
+    "SandboxError",
+    "SandboxExecutionError",
+    "SandboxExecutor",
+    "SandboxPlan",
+    "SandboxPolicy",
+    "SandboxProcessHandle",
     "StageError",
     "StagedArtifact",
     "StagingPolicy",
+    "SubprocessContainerCommandRunner",
+    "SubprocessLauncher",
     "UntrustedSourceError",
     "UrlLibArchiveTransport",
 ]
-
-from .sandbox import (
-    AppleContainerSandbox,
-    SandboxBackend,
-    SandboxError,
-    SandboxPlan,
-    SandboxPolicy,
-)
-
-from .execution import (
-    ExecutionController,
-    ExecutionError,
-    ExecutionPolicy,
-    ExecutionResult,
-    ExecutionStatus,
-    ExecutionVerifier,
-    ProcessHandle,
-    ProcessLauncher,
-    SubprocessLauncher,
-)
-
-from .session import ExecutionSession, ExecutionSessionError
