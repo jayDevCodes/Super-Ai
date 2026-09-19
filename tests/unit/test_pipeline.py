@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from core.contracts import CapabilitySpec, ResourceContract, ResourceScheduler, ResourceSnapshot, TaskConstraints
+from registry.manifest import ArtifactSpec, CapabilityManifest
 from core.runtime.execution import ExecutionController, ExecutionResult, ExecutionStatus
 from core.runtime.pipeline import (
     CapabilityExecutionRequest,
@@ -102,12 +103,15 @@ class PipelineTests(unittest.TestCase):
                 permissions=frozenset(),
             )
 
-            class Manifest:
-                capability_id = "demo"
-                version = "1.0.0"
-
-                def validate(self):
-                    return None
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+            )
 
             request = CapabilityExecutionRequest(
                 image="alpine:3.22",
@@ -116,7 +120,7 @@ class PipelineTests(unittest.TestCase):
                 expected_image_digest="sha256:" + "a" * 64,
             )
             execution = runtime.execute(
-                manifest=Manifest(),
+                manifest=manifest,
                 capability_spec=spec,
                 request=request,
             )
@@ -163,12 +167,15 @@ class PipelineTests(unittest.TestCase):
                 permissions=frozenset({"filesystem"}),
             )
 
-            class Manifest:
-                capability_id = "demo"
-                version = "1.0.0"
-
-                def validate(self):
-                    return None
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+            )
 
             result = runtime.execute(
                 manifest=Manifest(),
