@@ -386,6 +386,7 @@ class AppleContainerExecutor:
         except Exception as exc:
             self._delete_after_failure(
                 container_id=container_id,
+                ownership=ownership,
                 cwd=Path(cwd),
                 environment=environment,
             )
@@ -405,6 +406,7 @@ class AppleContainerExecutor:
         except Exception as exc:
             self._delete_after_failure(
                 container_id=container_id,
+                ownership=ownership,
                 cwd=Path(cwd),
                 environment=environment,
             )
