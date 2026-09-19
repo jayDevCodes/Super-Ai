@@ -5,7 +5,13 @@ import json
 import time
 from typing import Any, Mapping, Protocol
 
-from .container_executor import CommandResult
+from typing import Protocol
+
+
+class _CommandResult(Protocol):
+    returncode: int
+    stdout: bytes
+    stderr: bytes
 
 
 class TelemetryError(RuntimeError):
@@ -123,7 +129,7 @@ class AppleContainerStatsProvider:
         self._timeout_seconds = timeout_seconds
 
     def get_stats(self, container_id: str) -> ContainerStatsSample | None:
-        result: CommandResult = self._runner.run(
+        result: _CommandResult = self._runner.run(
             (
                 "container",
                 "stats",
