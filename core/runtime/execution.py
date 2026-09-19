@@ -494,31 +494,6 @@ def _with_runtime_data(
     )
 
 
-def _with_runtime_data(
-    result: ExecutionResult,
-    sandbox_handle: SandboxProcessHandle,
-) -> ExecutionResult:
-    attestation = getattr(sandbox_handle, "attestation", None)
-    image_digest = getattr(sandbox_handle, "image_digest", None)
-    telemetry = getattr(sandbox_handle, "telemetry", None)
-    return ExecutionResult(
-        status=result.status,
-        exit_code=result.exit_code,
-        stdout=result.stdout,
-        stderr=result.stderr,
-        duration_seconds=result.duration_seconds,
-        timed_out=result.timed_out,
-        stdout_truncated=result.stdout_truncated,
-        stderr_truncated=result.stderr_truncated,
-        verified=result.verified,
-        cleanup_completed=result.cleanup_completed,
-        sandbox_attested=bool(attestation),
-        sandbox_image_digest=image_digest,
-        telemetry=telemetry,
-        cancellation_reason=result.cancellation_reason,
-    )
-
-
 def _with_status(
     result: ExecutionResult,
     status: ExecutionStatus,
