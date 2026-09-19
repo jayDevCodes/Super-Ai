@@ -221,10 +221,7 @@ class AppleContainerProcessHandle:
             self._telemetry_stop.set()
         if self._telemetry_thread is not None:
             self._telemetry_thread.join(
-                timeout=min(
-                    self._control_timeout_seconds,
-                    max(2.0, self._telemetry_interval_seconds + 0.5),
-                )
+                timeout=min(self._control_timeout_seconds, 2.0)
             )
 
         try:
