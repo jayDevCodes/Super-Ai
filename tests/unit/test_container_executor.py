@@ -143,8 +143,13 @@ class FakeRunner:
         return self.process
 
     def _attestation_payload(self, container_id: str):
+        execution_id = container_id.removeprefix("super-ai-").ljust(32, "0")
         configuration = {
             "id": container_id,
+            "labels": {
+                "com.super-ai.owner": "super-ai",
+                "com.super-ai.execution": execution_id,
+            },
             "image": {
                 "reference": "alpine:latest",
                 "descriptor": {"digest": IMAGE_DIGEST},
@@ -406,6 +411,68 @@ class AppleContainerExecutorTests(unittest.TestCase):
         self.assertTrue(
             any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
         )
+
+    def test_cleanup_refuses_unowned_container(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={"PATH": "/usr/bin"},
+            )
+
+            runner.attestation_overrides["configuration"] = {
+                "labels": {
+                    "com.super-ai.owner": "other-owner",
+                    "com.super-ai.execution": "b" * 32,
+                }
+            }
+
+            with self.assertRaisesRegex(
+                SandboxExecutionError,
+                "not owned",
+            ):
+                handle.cleanup()
+
+            delete_calls = [
+                call for call in runner.calls
+                if call[:3] == ("container", "delete", "--force")
+            ]
+            self.assertEqual(delete_calls, [])
+
+    def test_create_command_carries_execution_ownership_labels(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={"PATH": "/usr/bin"},
+            )
+
+            create_call = next(
+                call for call in runner.calls if call[:2] == ("container", "create")
+            )
+            self.assertIn("com.super-ai.owner=super-ai", create_call)
+            execution_labels = [
+                value for value in create_call
+                if value.startswith("com.super-ai.execution=")
+            ]
+            self.assertEqual(len(execution_labels), 1)
+            self.assertEqual(
+                len(execution_labels[0].split("=", 1)[1]),
+                32,
+            )
+            handle.cleanup()
 
     def test_execution_controller_uses_sandbox_lifecycle_and_evidence(self):
         runner = FakeRunner()
