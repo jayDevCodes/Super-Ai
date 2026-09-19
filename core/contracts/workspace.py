@@ -64,7 +64,9 @@ class WorkspaceContract:
         elif require_output:
             raise WorkspaceContractError("workspace output directory does not exist")
         else:
-            _resolved_existing_directory(output.parent, "workspace output parent")
+            # Missing descendant directories are safe to create because the
+            # resolved output path has already been proven to stay inside root.
+            pass
 
         if _is_ancestor(source, output) or _is_ancestor(output, source):
             raise WorkspaceContractError(
