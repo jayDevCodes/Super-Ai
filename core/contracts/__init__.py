@@ -3,6 +3,7 @@ from .resources import ResourceContract, TaskConstraints
 from .scheduler import (
     Allocation,
     ResourceBudget,
+    ResourceLease,
     ResourceLimitError,
     ResourceScheduler,
     ResourceSnapshot,
@@ -15,6 +16,7 @@ __all__ = [
     "CapabilitySpec",
     "ResourceBudget",
     "ResourceContract",
+    "ResourceLease",
     "ResourceLimitError",
     "ResourceScheduler",
     "ResourceSnapshot",
