@@ -12,6 +12,7 @@ from core.contracts import (
 )
 
 from core.policy import CapabilityPolicyEngine, PolicyDecisionState
+from core.audit import HashChainAuditStore
 
 from .execution import (
     ExecutionController,
@@ -69,6 +70,7 @@ class CapabilityRuntime:
         controller: ExecutionController,
         resolver: GitHubSourceResolver | None = None,
         policy_engine: CapabilityPolicyEngine | None = None,
+        audit_store: HashChainAuditStore | None = None,
         sandbox: AppleContainerSandbox | None = None,
     ) -> None:
         self._scheduler = scheduler
@@ -76,6 +78,7 @@ class CapabilityRuntime:
         self._controller = controller
         self._resolver = resolver or GitHubSourceResolver()
         self._policy_engine = policy_engine or CapabilityPolicyEngine()
+        self._audit = audit_store
         self._sandbox = sandbox or AppleContainerSandbox()
 
     def execute(
@@ -105,6 +108,14 @@ class CapabilityRuntime:
             task_constraints,
         )
         if decision.state is PolicyDecisionState.DENY:
+            self._record(
+                "runtime.policy_denied",
+                {
+                    "capability_id": capability_spec.capability_id,
+                    "version": capability_spec.version,
+                    "reasons": list(decision.reasons),
+                },
+            )
             raise CapabilityPipelineError(
                 "capability execution denied: " + "; ".join(decision.reasons)
             )
@@ -123,6 +134,15 @@ class CapabilityRuntime:
 
         request.output_path.mkdir(parents=True, exist_ok=True)
         output_path = request.output_path.resolve()
+
+        self._record(
+            "runtime.execution_requested",
+            {
+                "capability_id": capability_spec.capability_id,
+                "version": capability_spec.version,
+                "image": request.image,
+            },
+        )
 
         with TemporaryDirectory(
             prefix=f"super-ai-runtime-{manifest.capability_id.replace('.', '-')}-"
@@ -156,6 +176,14 @@ class CapabilityRuntime:
                 expected_image_digest=request.expected_image_digest,
             )
 
+            self._record(
+                "runtime.execution_started",
+                {
+                    "capability_id": capability_spec.capability_id,
+                    "version": capability_spec.version,
+                },
+            )
+
             with ExecutionSession(
                 self._scheduler,
                 self._controller,
@@ -169,4 +197,20 @@ class CapabilityRuntime:
                     verifier=verifier,
                 )
 
+            self._record(
+                "runtime.execution_finished",
+                {
+                    "capability_id": capability_spec.capability_id,
+                    "version": capability_spec.version,
+                    "status": result.status.value,
+                    "verified": result.verified,
+                    "cleanup_completed": result.cleanup_completed,
+                    "sandbox_attested": result.sandbox_attested,
+                    "image_digest": result.sandbox_image_digest,
+                },
+            )
             return CapabilityExecution(result=result, staged=staged)
+
+    def _record(self, event_name: str, attributes: dict[str, object]) -> None:
+        if self._audit is not None:
+            self._audit.append(event_name, attributes)
