@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import threading
-import uuid
 from typing import BinaryIO, Mapping, Protocol
 
 from .attestation import AttestationPolicy, SandboxAttestation, attest_container
 from .execution import ProcessHandle, SandboxProcessHandle
+from .ownership import OwnershipClaim, OwnershipError, new_ownership_claim, verify_container_ownership
 from .preflight import AppleContainerPreflight, ImageIdentity, PreflightError
 from .sandbox import AppleContainerSandbox, SandboxError, SandboxPlan
 from .telemetry import AppleContainerStatsProvider, ContainerStatsCollector
@@ -124,6 +124,7 @@ class AppleContainerProcessHandle:
         telemetry_thread: threading.Thread | None,
         telemetry_stop: threading.Event | None,
         image_identity: ImageIdentity,
+        ownership: OwnershipClaim,
     ) -> None:
         self._process = process
         self._container_id = container_id
@@ -138,6 +139,7 @@ class AppleContainerProcessHandle:
         self._telemetry_thread = telemetry_thread
         self._telemetry_stop = telemetry_stop
         self._image_identity = image_identity
+        self._ownership = ownership
 
     @property
     def process(self) -> ProcessHandle:
@@ -225,6 +227,32 @@ class AppleContainerProcessHandle:
             )
 
         try:
+            inspect = self._runner.run(
+                ("container", "inspect", self._container_id),
+                cwd=self._cwd,
+                environment=self._environment,
+                timeout_seconds=self._control_timeout_seconds,
+            )
+        except Exception as exc:
+            raise SandboxExecutionError("container ownership inspect failed") from exc
+
+        if inspect.returncode != 0:
+            stderr = inspect.stderr.decode("utf-8", errors="replace").lower()
+            if "not found" in stderr or "no such" in stderr:
+                self._cleaned = True
+                return
+            raise SandboxExecutionError(
+                "container ownership inspect returned a non-zero status"
+            )
+
+        try:
+            verify_container_ownership(inspect.stdout, self._ownership)
+        except OwnershipError as exc:
+            raise SandboxExecutionError(
+                "refusing to delete a container that is not owned by this execution"
+            ) from exc
+
+        try:
             result = self._runner.run(
                 ("container", "delete", "--force", self._container_id),
                 cwd=self._cwd,
@@ -298,10 +326,12 @@ class AppleContainerExecutor:
                 "preflight image digest does not match the pinned plan digest"
             )
 
-        container_id = f"super-ai-{uuid.uuid4().hex[:24]}"
+        ownership = new_ownership_claim()
+        container_id = ownership.container_id
         create_command = self._planner.build_create_command(
             plan,
             container_id=container_id,
+            labels=ownership.labels,
         )
 
         try:
@@ -331,6 +361,7 @@ class AppleContainerExecutor:
         if inspect.returncode != 0:
             self._delete_after_failure(
                 container_id=container_id,
+                ownership=ownership,
                 cwd=Path(cwd),
                 environment=environment,
             )
@@ -412,6 +443,7 @@ class AppleContainerExecutor:
                 reference=image_identity.reference,
                 digest=expected_digest,
             ),
+            ownership=ownership,
         )
 
     def _telemetry_loop(
@@ -455,10 +487,27 @@ class AppleContainerExecutor:
         self,
         *,
         container_id: str,
+        ownership: OwnershipClaim,
         cwd: Path,
         environment: Mapping[str, str],
     ) -> None:
         try:
+            inspect = self._runner.run(
+                ("container", "inspect", container_id),
+                cwd=cwd,
+                environment=environment,
+                timeout_seconds=self._control_timeout_seconds,
+            )
+            if inspect.returncode != 0:
+                stderr = inspect.stderr.decode("utf-8", errors="replace").lower()
+                if "not found" in stderr or "no such" in stderr:
+                    return
+                raise SandboxExecutionError(
+                    "container cleanup ownership inspect returned non-zero"
+                )
+
+            verify_container_ownership(inspect.stdout, ownership)
+
             result = self._runner.run(
                 ("container", "delete", "--force", container_id),
                 cwd=cwd,
@@ -473,6 +522,10 @@ class AppleContainerExecutor:
                     )
         except SandboxExecutionError:
             raise
+        except OwnershipError as exc:
+            raise SandboxExecutionError(
+                "refusing to delete a container that is not owned by this execution"
+            ) from exc
         except Exception as exc:
             raise SandboxExecutionError("container cleanup failed") from exc
 
