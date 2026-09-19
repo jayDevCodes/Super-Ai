@@ -79,6 +79,7 @@ class BrainTests(unittest.TestCase):
             ["browser.read", "browser.fill"],
         )
         self.assertFalse(plan.requires_confirmation)
+        self.assertRegex(plan.trace_context.trace_id, r"^[0-9a-f]{32}$")
 
     def test_execute_delegates_through_task_executor(self):
         task = Task(
@@ -136,6 +137,12 @@ class BrainTests(unittest.TestCase):
             self.assertIn("brain.plan_created", names)
             self.assertIn("brain.execution_finished", names)
             self.assertTrue(audit.verify())
+            self.assertTrue(
+                all(
+                    "trace_id" in event.attributes
+                    for event in audit.read_all()
+                )
+            )
 
 
 if __name__ == "__main__":
