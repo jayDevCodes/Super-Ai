@@ -53,6 +53,21 @@ class SandboxAttestation:
     mount_destinations: tuple[str, ...]
     passed: bool
 
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "container_id": self.container_id,
+            "image_reference": self.image_reference,
+            "image_digest": self.image_digest,
+            "cpus": self.cpus,
+            "memory_bytes": self.memory_bytes,
+            "read_only_root": self.read_only_root,
+            "cap_drop": list(self.cap_drop),
+            "user": self.user,
+            "network_count": self.network_count,
+            "mount_destinations": list(self.mount_destinations),
+            "passed": self.passed,
+        }
+
 
 def attest_container(
     payload: bytes | str | Mapping[str, Any],
