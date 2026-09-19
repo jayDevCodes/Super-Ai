@@ -6,6 +6,7 @@ import unittest
 
 from core.contracts import CapabilitySpec, ResourceContract, ResourceScheduler, ResourceSnapshot, TaskConstraints
 from registry.manifest import ArtifactSpec, CapabilityManifest
+from core.runtime.cancellation import CancellationToken
 from core.runtime.execution import ExecutionController, ExecutionResult, ExecutionStatus
 from core.runtime.pipeline import (
     CapabilityExecutionRequest,
@@ -192,6 +193,66 @@ class PipelineTests(unittest.TestCase):
                 verifier=lambda _: True,
             )
             self.assertEqual(controller.calls[0][0].policy.network, "disabled")
+
+
+    def test_cancellation_token_is_forwarded_to_session_controller(self):
+        token = CancellationToken()
+        with TemporaryDirectory() as temp:
+            target = Path(temp) / "target"
+            target.mkdir()
+            staged = __import__("core.runtime.stager", fromlist=["StagedArtifact"]).StagedArtifact(
+                capability_id="demo",
+                pinned_commit="a" * 40,
+                repository_root=Path(temp),
+                target_path=target,
+                downloaded_bytes=1,
+                extracted_bytes=1,
+                sha256="b" * 64,
+            )
+            stager = FakeStager(staged)
+            controller = FakeController()
+            runtime = CapabilityRuntime(
+                scheduler=ResourceScheduler(
+                    ResourceSnapshot(
+                        total_ram_mb=4096,
+                        available_ram_mb=4096,
+                        free_disk_mb=8192,
+                        cpu_threads=4,
+                    )
+                ),
+                stager=stager,
+                controller=controller,
+            )
+
+            spec = CapabilitySpec(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                resource=ResourceContract(256, 512),
+            )
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+            )
+            runtime.execute(
+                manifest=manifest,
+                capability_spec=spec,
+                request=CapabilityExecutionRequest(
+                    image="alpine:3.22",
+                    command=("true",),
+                    output_path=Path(temp) / "out",
+                    workspace_root=Path(temp),
+                    cancellation_token=token,
+                ),
+                verifier=lambda _: True,
+            )
+
+        self.assertEqual(controller.calls[0][2], None)
 
     def test_request_validation_rejects_empty_command(self):
         with self.assertRaises(ValueError):
