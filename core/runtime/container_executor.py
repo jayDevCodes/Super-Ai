@@ -340,7 +340,7 @@ class AppleContainerExecutor:
             created = self._runner.run(
                 create_command,
                 cwd=Path(cwd),
-                environment=environment,
+                environment=safe_environment,
                 timeout_seconds=self._create_timeout_seconds,
             )
         except SandboxError:
@@ -357,7 +357,7 @@ class AppleContainerExecutor:
         inspect = self._runner.run(
             ("container", "inspect", container_id),
             cwd=Path(cwd),
-            environment=environment,
+            environment=safe_environment,
             timeout_seconds=self._control_timeout_seconds,
         )
         if inspect.returncode != 0:
@@ -365,7 +365,7 @@ class AppleContainerExecutor:
                 container_id=container_id,
                 ownership=ownership,
                 cwd=Path(cwd),
-                environment=environment,
+                environment=safe_environment,
             )
             stderr = inspect.stderr.decode("utf-8", errors="replace").strip()
             raise SandboxExecutionError(
@@ -390,7 +390,7 @@ class AppleContainerExecutor:
                 container_id=container_id,
                 ownership=ownership,
                 cwd=Path(cwd),
-                environment=environment,
+                environment=safe_environment,
             )
             if isinstance(exc, SandboxExecutionError):
                 raise
@@ -403,14 +403,14 @@ class AppleContainerExecutor:
             process = self._runner.popen(
                 start_command,
                 cwd=Path(cwd),
-                environment=environment,
+                environment=safe_environment,
             )
         except Exception as exc:
             self._delete_after_failure(
                 container_id=container_id,
                 ownership=ownership,
                 cwd=Path(cwd),
-                environment=environment,
+                environment=safe_environment,
             )
             raise SandboxExecutionError("container start failed") from exc
 
@@ -418,7 +418,7 @@ class AppleContainerExecutor:
             AppleContainerStatsProvider(
                 self._runner,
                 cwd=Path(cwd),
-                environment=environment,
+                environment=safe_environment,
                 timeout_seconds=self._control_timeout_seconds,
             )
         )
@@ -436,7 +436,7 @@ class AppleContainerExecutor:
             container_id=container_id,
             runner=self._runner,
             cwd=Path(cwd),
-            environment=environment,
+            environment=safe_environment,
             control_timeout_seconds=self._control_timeout_seconds,
             stop_grace_seconds=plan.policy.timeout_seconds,
             attestation=attestation,
