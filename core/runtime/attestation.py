@@ -182,6 +182,9 @@ def attest_container(
         destinations.append(destination)
         mount_by_destination[destination] = mount
 
+    if len(destinations) != len(set(destinations)):
+        raise AttestationError("duplicate mount destinations are not allowed")
+
     required = set(policy.required_mounts)
     if set(destinations) != required:
         raise AttestationError(
