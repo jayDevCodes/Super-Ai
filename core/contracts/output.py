@@ -54,9 +54,9 @@ class OutputContract:
                 )
             if (
                 path.startswith(("/", "\\"))
-                or "\\x00" in path
-                or "\\r" in path
-                or "\\n" in path
+                or "\x00" in path
+                or "\r" in path
+                or "\n" in path
             ):
                 raise OutputContractError(
                     "required output paths must be relative and free of control characters"
@@ -128,18 +128,24 @@ class OutputContract:
                     violations.append("output entry could not be inspected safely")
                     continue
 
+                if size > self.max_single_file_bytes:
+                    violations.append(
+                        f"output file exceeds per-file limit: {relative}"
+                    )
                 file_count += 1
                 total_bytes += size
+                if relative in required:
+                    seen_required.add(relative)
 
                 if file_count > self.max_files:
                     violations.append("output file count exceeds contract")
-                if size > self.max_single_file_bytes:
-                    violations.append(f"output file exceeds per-file limit: {relative}")
+                    break
                 if total_bytes > self.max_total_bytes:
                     violations.append("output total size exceeds contract")
+                    break
 
-                if relative in required:
-                    seen_required.add(relative)
+            if file_count > self.max_files or total_bytes > self.max_total_bytes:
+                break
 
         missing = tuple(sorted(required - seen_required))
         if missing:
