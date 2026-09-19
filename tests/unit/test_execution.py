@@ -218,6 +218,17 @@ class ExecutionControllerTests(unittest.TestCase):
         self.assertTrue(process.terminated or process.killed)
         self.assertTrue(cleanup_called.is_set())
 
+    def test_no_backend_is_refused(self):
+        controller = ExecutionController()
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(
+                source_path=Path(temp),
+                output_path=Path(temp),
+            )
+            with self.assertRaisesRegex(ExecutionError, "no execution backend"):
+                controller.run(plan)
+
     def test_not_execution_ready_is_refused(self):
         process = FakeProcess()
         launcher = FakeLauncher(process)
