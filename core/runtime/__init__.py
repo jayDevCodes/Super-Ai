@@ -1,3 +1,9 @@
+from .attestation import (
+    AttestationError,
+    AttestationPolicy,
+    SandboxAttestation,
+    attest_container,
+)
 from .container_executor import (
     AppleContainerExecutor,
     AppleContainerProcessHandle,
@@ -26,6 +32,7 @@ from .loader import (
     LoadError,
     UntrustedSourceError,
 )
+from .preflight import AppleContainerPreflight, ImageIdentity, PreflightError
 from .sandbox import (
     AppleContainerSandbox,
     SandboxBackend,
@@ -42,16 +49,30 @@ from .stager import (
     StagingPolicy,
     UrlLibArchiveTransport,
 )
+from .telemetry import (
+    AppleContainerStatsProvider,
+    ContainerStatsCollector,
+    ContainerStatsSample,
+    ContainerTelemetry,
+    TelemetryError,
+)
 
 __all__ = [
     "AppleContainerExecutor",
+    "AppleContainerPreflight",
     "AppleContainerProcessHandle",
     "AppleContainerSandbox",
+    "AppleContainerStatsProvider",
     "ArchiveTransport",
+    "AttestationError",
+    "AttestationPolicy",
     "CapabilityLoader",
     "CapabilityStager",
     "CommandResult",
     "ContainerCommandRunner",
+    "ContainerStatsCollector",
+    "ContainerStatsSample",
+    "ContainerTelemetry",
     "ExecutionController",
     "ExecutionError",
     "ExecutionPolicy",
@@ -60,11 +81,14 @@ __all__ = [
     "ExecutionSessionError",
     "ExecutionStatus",
     "ExecutionVerifier",
+    "ImageIdentity",
     "LoadError",
     "LoaderState",
     "LoadedCapability",
+    "PreflightError",
     "ProcessHandle",
     "ProcessLauncher",
+    "SandboxAttestation",
     "SandboxBackend",
     "SandboxError",
     "SandboxExecutionError",
@@ -77,6 +101,8 @@ __all__ = [
     "StagingPolicy",
     "SubprocessContainerCommandRunner",
     "SubprocessLauncher",
+    "TelemetryError",
     "UntrustedSourceError",
     "UrlLibArchiveTransport",
+    "attest_container",
 ]
