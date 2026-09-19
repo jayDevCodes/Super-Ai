@@ -404,6 +404,163 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result.result.status, ExecutionStatus.VERIFICATION_FAILED)
         self.assertFalse(result.result.verified)
 
+
+
+    def test_idempotency_replays_without_second_controller_execution(self):
+        from core.runtime.stager import StagedArtifact
+
+        with TemporaryDirectory() as temp:
+            source_root = Path(temp) / "source"
+            target = source_root / "cap"
+            target.mkdir(parents=True)
+            output = Path(temp) / "output"
+
+            staged = StagedArtifact(
+                capability_id="demo",
+                pinned_commit="a" * 40,
+                repository_root=source_root,
+                target_path=target,
+                downloaded_bytes=1,
+                extracted_bytes=1,
+                sha256="b" * 64,
+            )
+            stager = FakeStager(staged)
+            controller = FakeController()
+            coordinator = IdempotencyCoordinator()
+            runtime = CapabilityRuntime(
+                scheduler=ResourceScheduler(
+                    ResourceSnapshot(
+                        total_ram_mb=4096,
+                        available_ram_mb=4096,
+                        free_disk_mb=8192,
+                        cpu_threads=4,
+                    )
+                ),
+                stager=stager,
+                controller=controller,
+                idempotency_coordinator=coordinator,
+            )
+
+            spec = CapabilitySpec(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                resource=ResourceContract(256, 512),
+            )
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+            )
+
+            def make_request():
+                return CapabilityExecutionRequest(
+                    image="alpine:3.22",
+                    command=("true",),
+                    output_path=output,
+                    workspace_root=Path(temp),
+                    idempotency_key="task-demo-step-1",
+                )
+
+            first = runtime.execute(
+                manifest=manifest,
+                capability_spec=spec,
+                request=make_request(),
+                verifier=lambda _: True,
+            )
+            second = runtime.execute(
+                manifest=manifest,
+                capability_spec=spec,
+                request=make_request(),
+                verifier=lambda _: True,
+            )
+
+            self.assertEqual(len(controller.calls), 1)
+            self.assertEqual(first.result.status, second.result.status)
+            self.assertEqual(second.result.stdout, "ok")
+            self.assertEqual(coordinator.size(), 1)
+
+    def test_idempotency_key_conflict_is_rejected(self):
+        from core.runtime.stager import StagedArtifact
+
+        with TemporaryDirectory() as temp:
+            source_root = Path(temp) / "source"
+            target = source_root / "cap"
+            target.mkdir(parents=True)
+            output = Path(temp) / "output"
+
+            staged = StagedArtifact(
+                capability_id="demo",
+                pinned_commit="a" * 40,
+                repository_root=source_root,
+                target_path=target,
+                downloaded_bytes=1,
+                extracted_bytes=1,
+                sha256="b" * 64,
+            )
+            stager = FakeStager(staged)
+            controller = FakeController()
+            runtime = CapabilityRuntime(
+                scheduler=ResourceScheduler(
+                    ResourceSnapshot(
+                        total_ram_mb=4096,
+                        available_ram_mb=4096,
+                        free_disk_mb=8192,
+                        cpu_threads=4,
+                    )
+                ),
+                stager=stager,
+                controller=controller,
+                idempotency_coordinator=IdempotencyCoordinator(),
+            )
+
+            spec = CapabilitySpec(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                resource=ResourceContract(256, 512),
+            )
+            manifest = CapabilityManifest(
+                capability_id="demo",
+                version="1.0.0",
+                description="demo",
+                artifact=ArtifactSpec(
+                    repository_url="https://github.com/example/demo",
+                    pinned_commit="a" * 40,
+                ),
+            )
+
+            base = dict(
+                image="alpine:3.22",
+                output_path=output,
+                workspace_root=Path(temp),
+                idempotency_key="task-demo-step-1",
+            )
+            runtime.execute(
+                manifest=manifest,
+                capability_spec=spec,
+                request=CapabilityExecutionRequest(
+                    **base,
+                    command=("true",),
+                ),
+                verifier=lambda _: True,
+            )
+
+            with self.assertRaises(CapabilityPipelineError):
+                runtime.execute(
+                    manifest=manifest,
+                    capability_spec=spec,
+                    request=CapabilityExecutionRequest(
+                        **base,
+                        command=("false",),
+                    ),
+                    verifier=lambda _: True,
+                )
+
     def test_request_validation_rejects_empty_command(self):
         with self.assertRaises(ValueError):
             CapabilityExecutionRequest(
