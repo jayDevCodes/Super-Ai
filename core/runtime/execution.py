@@ -8,7 +8,7 @@ import signal
 import subprocess
 import threading
 import time
-from typing import Callable, Mapping, Protocol
+from typing import BinaryIO, Callable, Mapping, Protocol
 
 from .sandbox import SandboxPlan
 
@@ -80,10 +80,12 @@ class ProcessHandle(Protocol):
     def wait(self, timeout: float | None = None) -> int:
         ...
 
-    def stdout(self):  # type: ignore[no-untyped-def]
+    @property
+    def stdout(self) -> BinaryIO | None:
         ...
 
-    def stderr(self):  # type: ignore[no-untyped-def]
+    @property
+    def stderr(self) -> BinaryIO | None:
         ...
 
 
@@ -97,6 +99,30 @@ class ProcessLauncher(Protocol):
         cwd: Path,
         environment: Mapping[str, str],
     ) -> ProcessHandle:
+        ...
+
+
+class SandboxProcessHandle(Protocol):
+    """Process plus sandbox lifecycle owned by an execution backend."""
+
+    @property
+    def process(self) -> ProcessHandle:
+        ...
+
+    def cleanup(self) -> None:
+        ...
+
+
+class SandboxExecutor(Protocol):
+    """Launches a complete SandboxPlan inside an isolated backend."""
+
+    def launch(
+        self,
+        plan: SandboxPlan,
+        *,
+        cwd: Path,
+        environment: Mapping[str, str],
+    ) -> SandboxProcessHandle:
         ...
 
 
@@ -116,7 +142,7 @@ class _OutputCapture:
     chunks: bytearray
     truncated: bool = False
 
-    def read_from(self, stream) -> None:  # type: ignore[no-untyped-def]
+    def read_from(self, stream: BinaryIO) -> None:
         try:
             while True:
                 chunk = stream.read(64 * 1024)
@@ -135,10 +161,11 @@ class _OutputCapture:
 
 
 class SubprocessLauncher:
-    """Host launcher for a command that is already sandboxed by another layer.
+    """Explicit host launcher for trusted local commands.
 
-    It never invokes a shell and inherits only the explicit environment supplied
-    by the execution controller.
+    Untrusted capabilities must use a SandboxExecutor instead. Keeping the
+    launcher explicit prevents the controller from silently falling back to
+    host execution.
     """
 
     def launch(
@@ -166,7 +193,7 @@ class SubprocessLauncher:
                 close_fds=True,
             )
         except OSError as exc:
-            raise ExecutionError("sandbox process launch failed") from exc
+            raise ExecutionError("host process launch failed") from exc
 
 
 class ExecutionController:
@@ -176,8 +203,12 @@ class ExecutionController:
         self,
         launcher: ProcessLauncher | None = None,
         environment: Mapping[str, str] | None = None,
+        sandbox_executor: SandboxExecutor | None = None,
     ) -> None:
-        self._launcher = launcher or SubprocessLauncher()
+        if launcher is not None and sandbox_executor is not None:
+            raise ValueError("choose launcher or sandbox_executor, not both")
+        self._launcher = launcher
+        self._sandbox_executor = sandbox_executor
         self._environment = {
             "PATH": os.environ.get(
                 "PATH", "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
@@ -212,10 +243,14 @@ class ExecutionController:
         if not plan.command:
             raise ExecutionError("sandbox plan command must not be empty")
 
+        if self._launcher is None and self._sandbox_executor is None:
+            raise ExecutionError("no execution backend configured")
+
         started = time.monotonic()
         stdout_capture = _OutputCapture(active_policy.max_output_bytes, bytearray())
         stderr_capture = _OutputCapture(active_policy.max_error_bytes, bytearray())
         process: ProcessHandle | None = None
+        sandbox_handle: SandboxProcessHandle | None = None
         readers: list[threading.Thread] = []
         timed_out = False
         result: ExecutionResult | None = None
@@ -223,16 +258,26 @@ class ExecutionController:
         cleanup_error: Exception | None = None
 
         try:
-            process = self._launcher.launch(
-                plan.command,
-                cwd=plan.output_path,
-                environment=self._environment,
-            )
+            if self._sandbox_executor is not None:
+                sandbox_handle = self._sandbox_executor.launch(
+                    plan,
+                    cwd=plan.output_path,
+                    environment=self._environment,
+                )
+                process = sandbox_handle.process
+            else:
+                process = self._launcher.launch(  # type: ignore[union-attr]
+                    plan.command,
+                    cwd=plan.output_path,
+                    environment=self._environment,
+                )
 
             stdout_stream = process.stdout
             stderr_stream = process.stderr
             if stdout_stream is None or stderr_stream is None:
-                raise ExecutionError("sandbox process did not expose stdout/stderr pipes")
+                raise ExecutionError(
+                    "execution process did not expose stdout/stderr pipes"
+                )
 
             readers = [
                 threading.Thread(
@@ -324,6 +369,12 @@ class ExecutionController:
 
             for reader in readers:
                 reader.join(timeout=max(active_policy.termination_grace_seconds, 0.2))
+
+            if sandbox_handle is not None:
+                try:
+                    sandbox_handle.cleanup()
+                except Exception as exc:
+                    cleanup_error = exc
 
             if cleanup is not None:
                 try:
