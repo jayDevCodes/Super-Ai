@@ -212,10 +212,20 @@ class AppleContainerProcessHandle:
         if self._cleaned:
             return
 
+        try:
+            self._telemetry.sample(self._container_id)
+        except Exception:
+            pass
+
         if self._telemetry_stop is not None:
             self._telemetry_stop.set()
         if self._telemetry_thread is not None:
-            self._telemetry_thread.join(timeout=0.25)
+            self._telemetry_thread.join(
+                timeout=min(
+                    self._control_timeout_seconds,
+                    max(2.0, self._telemetry_interval_seconds + 0.5),
+                )
+            )
 
         try:
             result = self._runner.run(
@@ -434,7 +444,7 @@ class AppleContainerExecutor:
                 raise SandboxExecutionError(
                     "disabled-network plan must explicitly contain --network none"
                 )
-            if not _has_pair(plan.command, "--no-dns", "") and "--no-dns" not in plan.command:
+            if "--no-dns" not in plan.command:
                 raise SandboxExecutionError(
                     "disabled-network plan must explicitly contain --no-dns"
                 )
