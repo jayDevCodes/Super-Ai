@@ -227,15 +227,71 @@ class ExecutionControllerTests(unittest.TestCase):
             with self.assertRaisesRegex(ExecutionError, "execution-ready"):
                 controller.run(plan)
 
-        self.assertFalse(launcher_was_called(process))
+        self.assertEqual(launcher.calls, [])
+
+    def test_verifier_exception_fails_closed_and_cleanup_runs(self):
+        process = FakeProcess(returncode=0)
+        launcher = FakeLauncher(process)
+        controller = ExecutionController(launcher)
+
+        class BrokenVerifier:
+            def verify(self, result):
+                raise RuntimeError("verifier boom")
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(source_path=Path(temp), output_path=Path(temp))
+            cleanup_called = threading.Event()
+            result = controller.run(
+                plan,
+                verifier=BrokenVerifier(),
+                cleanup=cleanup_called.set,
+            )
+
+        self.assertEqual(result.status, ExecutionStatus.VERIFICATION_FAILED)
+        self.assertFalse(result.verified)
+        self.assertTrue(result.cleanup_completed)
+        self.assertTrue(cleanup_called.is_set())
+
+    def test_launch_failure_still_runs_cleanup(self):
+        class BrokenLauncher:
+            def launch(self, command, *, cwd, environment):
+                raise RuntimeError("launch boom")
+
+        controller = ExecutionController(BrokenLauncher())
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(source_path=Path(temp), output_path=Path(temp))
+            cleanup_called = threading.Event()
+            with self.assertRaisesRegex(RuntimeError, "launch boom"):
+                controller.run(plan, cleanup=cleanup_called.set)
+            self.assertTrue(cleanup_called.is_set())
+
+    def test_controller_cannot_extend_sandbox_timeout(self):
+        process = FakeProcess(returncode=0)
+        controller = ExecutionController(FakeLauncher(process))
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(
+                source_path=Path(temp),
+                output_path=Path(temp),
+                policy=SandboxPolicy(
+                    memory_mb=512,
+                    cpu_threads=1,
+                    network="isolated",
+                    network_name="super-ai-internal",
+                    timeout_seconds=1,
+                ),
+            )
+            with self.assertRaisesRegex(ExecutionError, "exceed"):
+                controller.run(
+                    plan,
+                    policy=ExecutionPolicy(timeout_seconds=2),
+                )
 
     def test_policy_validation_rejects_zero_output_limit(self):
         with self.assertRaises(ValueError):
             ExecutionPolicy(max_output_bytes=0).validate()
 
-
-def launcher_was_called(_process):
-    return False
 
 
 if __name__ == "__main__":
