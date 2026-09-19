@@ -27,3 +27,11 @@ __all__ = [
     "UntrustedSourceError",
     "UrlLibArchiveTransport",
 ]
+
+from .sandbox import (
+    AppleContainerSandbox,
+    SandboxBackend,
+    SandboxError,
+    SandboxPlan,
+    SandboxPolicy,
+)
