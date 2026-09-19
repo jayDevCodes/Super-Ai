@@ -59,6 +59,9 @@ class ExecutionResult:
     stderr_truncated: bool
     verified: bool | None
     cleanup_completed: bool
+    sandbox_attested: bool = False
+    sandbox_image_digest: str | None = None
+    telemetry: Mapping[str, object] | None = None
 
 
 class ProcessHandle(Protocol):
