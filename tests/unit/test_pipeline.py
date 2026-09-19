@@ -123,6 +123,7 @@ class PipelineTests(unittest.TestCase):
                 manifest=manifest,
                 capability_spec=spec,
                 request=request,
+                verifier=lambda _: True,
             )
 
         self.assertEqual(execution.result.status, ExecutionStatus.COMPLETED)
@@ -186,6 +187,7 @@ class PipelineTests(unittest.TestCase):
                     output_path=Path(temp) / "out",
                 ),
                 task_constraints=TaskConstraints(allow_network=True),
+                verifier=lambda _: True,
             )
             self.assertEqual(controller.calls[0][0].policy.network, "disabled")
 
