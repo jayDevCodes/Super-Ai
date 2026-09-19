@@ -27,8 +27,10 @@ class RuntimeSpec:
         if not self.image or self.image.strip() != self.image:
             raise RuntimeSpecError("image must be a non-empty trimmed string")
         parsed = urlparse(self.image)
-        if parsed.scheme or parsed.query or parsed.fragment:
+        if "://" in self.image or parsed.query or parsed.fragment:
             raise RuntimeSpecError("image must be a container image reference, not a URL")
+        if any(char.isspace() or char in "\x00\r\n" for char in self.image):
+            raise RuntimeSpecError("image contains unsafe whitespace or control characters")
 
         if not self.command:
             raise RuntimeSpecError("command must contain at least one argv element")
