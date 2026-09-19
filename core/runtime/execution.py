@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import math
 import os
 from pathlib import Path
 import signal
@@ -73,31 +74,24 @@ class ExecutionResult:
         """Return a bounded, secret-safe projection for control-plane metadata.
 
         Large or potentially untrusted payloads such as stdout, stderr, and
-        raw telemetry are intentionally excluded from this projection.
+        raw telemetry are intentionally excluded. String and collection fields
+        are bounded and control characters are sanitized before this projection
+        can reach an audit or telemetry sink.
         """
         return {
+            "metadata_schema_version": 1,
             "status": self.status.value,
             "exit_code": self.exit_code,
-            "duration_seconds": self.duration_seconds,
+            "duration_seconds": _safe_duration(self.duration_seconds),
             "timed_out": self.timed_out,
             "stdout_truncated": self.stdout_truncated,
             "stderr_truncated": self.stderr_truncated,
             "verified": self.verified,
             "cleanup_completed": self.cleanup_completed,
             "sandbox_attested": self.sandbox_attested,
-            "sandbox_image_digest": self.sandbox_image_digest,
-            "cancellation_reason": self.cancellation_reason,
-            "output": (
-                None
-                if self.output_inspection is None
-                else {
-                    "passed": self.output_inspection.passed,
-                    "file_count": self.output_inspection.file_count,
-                    "total_bytes": self.output_inspection.total_bytes,
-                    "missing_required": list(self.output_inspection.missing_required),
-                    "violations": list(self.output_inspection.violations)[:32],
-                }
-            ),
+            "sandbox_image_digest": _safe_digest(self.sandbox_image_digest),
+            "cancellation_reason": _safe_metadata_text(self.cancellation_reason),
+            "output": _metadata_output(self.output_inspection),
         }
 
 
@@ -482,6 +476,50 @@ class ExecutionController:
                 pass
 
         process.terminate()
+
+
+def _safe_metadata_text(value: str | None, *, max_length: int = 256) -> str | None:
+    if value is None:
+        return None
+    text = str(value).replace("\x00", "").replace("\r", " ").replace("\n", " ")
+    return text[:max_length]
+
+
+def _safe_duration(value: float) -> float | None:
+    if not math.isfinite(value):
+        return None
+    return max(0.0, value)
+
+
+def _safe_digest(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value)
+    if len(normalized) == 71 and normalized.startswith("sha256:"):
+        try:
+            int(normalized[7:], 16)
+        except ValueError:
+            return None
+        return normalized.lower()
+    return None
+
+
+def _metadata_output(inspection: OutputInspection | None) -> dict[str, object] | None:
+    if inspection is None:
+        return None
+    return {
+        "passed": bool(inspection.passed),
+        "file_count": max(0, int(inspection.file_count)),
+        "total_bytes": max(0, int(inspection.total_bytes)),
+        "missing_required": [
+            _safe_metadata_text(path, max_length=256)
+            for path in inspection.missing_required[:32]
+        ],
+        "violations": [
+            _safe_metadata_text(item, max_length=256)
+            for item in inspection.violations[:32]
+        ],
+    }
 
 
 def _with_runtime_data(
