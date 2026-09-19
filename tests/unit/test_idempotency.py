@@ -64,8 +64,7 @@ class IdempotencyCoordinatorTests(unittest.TestCase):
     def test_invalid_key_is_rejected(self):
         coordinator = IdempotencyCoordinator()
         with self.assertRaises(ValueError):
-            coordinator.claim("bad
-key", "a" * 64)
+            coordinator.claim("bad\\nkey", "a" * 64)
 
     def test_invalid_fingerprint_is_rejected(self):
         coordinator = IdempotencyCoordinator()
