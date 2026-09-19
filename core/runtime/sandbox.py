@@ -177,6 +177,9 @@ class AppleContainerSandbox:
         source = _validate_path(source_path, "source_path")
         output = _validate_path(output_path, "output_path")
 
+        if source == output:
+            raise SandboxError("source_path and output_path must be different")
+
         active_workspace = workspace or WorkspaceContract(
             root=output.parent,
             source_path=source,
@@ -195,9 +198,6 @@ class AppleContainerSandbox:
             raise SandboxError(
                 "workspace contract paths must match sandbox source/output paths"
             )
-
-        if source == output:
-            raise SandboxError("source_path and output_path must be different")
 
         args = self._build_run_args(
             image=image,
