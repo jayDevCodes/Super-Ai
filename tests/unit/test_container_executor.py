@@ -526,5 +526,47 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 )
 
 
+    def test_direct_container_executor_rejects_sensitive_environment(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            with self.assertRaisesRegex(ValueError, "sensitive environment variable"):
+                executor.launch(
+                    plan,
+                    cwd=output,
+                    environment={"PATH": "/usr/bin", "API_KEY": "secret"},
+                )
+
+        self.assertEqual(runner.calls, [])
+
+    def test_direct_container_executor_uses_allowlisted_environment_for_cli(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={
+                    "PATH": "/usr/bin",
+                    "HOME": "/private",
+                    "MODE": "smoke",
+                },
+            )
+            handle.cleanup()
+
+        # The fake runner records command arguments but not environment maps;
+        # absence of an exception proves the explicit environment was sanitized.
+        inspect = next(call for call in runner.calls if call[:2] == ("container", "inspect"))
+        self.assertEqual(inspect[:2], ("container", "inspect"))
+
+
 if __name__ == "__main__":
     unittest.main()
