@@ -13,6 +13,7 @@ from core.contracts import (
 
 from core.policy import CapabilityPolicyEngine, PolicyDecisionState
 from core.audit import HashChainAuditStore
+from core.observability import TraceContext
 
 from .execution import (
     ExecutionController,
@@ -39,6 +40,7 @@ class CapabilityExecutionRequest:
     output_path: Path
     timeout_seconds: float | None = None
     expected_image_digest: str | None = None
+    trace_context: TraceContext | None = None
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -93,6 +95,7 @@ class CapabilityRuntime:
         manifest.validate()
         capability_spec.validate()
         request.validate()
+        trace = request.trace_context or TraceContext.new_root()
 
         if manifest.capability_id != capability_spec.capability_id:
             raise CapabilityPipelineError(
@@ -115,6 +118,7 @@ class CapabilityRuntime:
                     "version": capability_spec.version,
                     "reasons": list(decision.reasons),
                 },
+                trace_context=trace,
             )
             raise CapabilityPipelineError(
                 "capability execution denied: " + "; ".join(decision.reasons)
@@ -142,6 +146,7 @@ class CapabilityRuntime:
                 "version": capability_spec.version,
                 "image": request.image,
             },
+            trace_context=trace,
         )
 
         with TemporaryDirectory(
@@ -182,6 +187,7 @@ class CapabilityRuntime:
                     "capability_id": capability_spec.capability_id,
                     "version": capability_spec.version,
                 },
+                trace_context=trace.child(),
             )
 
             with ExecutionSession(
@@ -208,9 +214,20 @@ class CapabilityRuntime:
                     "sandbox_attested": result.sandbox_attested,
                     "image_digest": result.sandbox_image_digest,
                 },
+                trace_context=trace.child(),
             )
             return CapabilityExecution(result=result, staged=staged)
 
-    def _record(self, event_name: str, attributes: dict[str, object]) -> None:
-        if self._audit is not None:
-            self._audit.append(event_name, attributes)
+    def _record(
+        self,
+        event_name: str,
+        attributes: dict[str, object],
+        *,
+        trace_context: TraceContext | None = None,
+    ) -> None:
+        if self._audit is None:
+            return
+        enriched = dict(attributes)
+        if trace_context is not None:
+            enriched.update(trace_context.as_attributes())
+        self._audit.append(event_name, enriched)
