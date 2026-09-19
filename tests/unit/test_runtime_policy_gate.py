@@ -37,7 +37,7 @@ class FakeController:
     def __init__(self):
         self.calls = []
 
-    def run(self, plan, *, policy=None, verifier=None, cleanup=None):
+    def run(self, plan, *, policy=None, verifier=None, cleanup=None, cancellation_token=None):
         self.calls.append(plan)
         return ExecutionResult(
             status=ExecutionStatus.COMPLETED,

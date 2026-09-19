@@ -11,6 +11,7 @@ import time
 from typing import BinaryIO, Callable, Mapping, Protocol
 
 from .sandbox import SandboxPlan
+from .cancellation import CancellationToken
 from core.security import build_sandbox_environment
 
 
@@ -24,6 +25,7 @@ class ExecutionStatus(str, Enum):
     TIMED_OUT = "timed_out"
     VERIFICATION_FAILED = "verification_failed"
     CLEANUP_FAILED = "cleanup_failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +65,7 @@ class ExecutionResult:
     sandbox_attested: bool = False
     sandbox_image_digest: str | None = None
     telemetry: Mapping[str, object] | None = None
+    cancellation_reason: str | None = None
 
     def as_metadata(self) -> dict[str, object]:
         """Return a bounded, secret-safe projection for control-plane metadata.
@@ -81,6 +84,7 @@ class ExecutionResult:
             "cleanup_completed": self.cleanup_completed,
             "sandbox_attested": self.sandbox_attested,
             "sandbox_image_digest": self.sandbox_image_digest,
+            "cancellation_reason": self.cancellation_reason,
         }
 
 
@@ -241,6 +245,7 @@ class ExecutionController:
         policy: ExecutionPolicy | None = None,
         verifier: ExecutionVerifier | None = None,
         cleanup: CleanupCallback | None = None,
+        cancellation_token: CancellationToken | None = None,
     ) -> ExecutionResult:
         active_policy = policy or ExecutionPolicy(
             timeout_seconds=plan.policy.timeout_seconds
@@ -264,6 +269,7 @@ class ExecutionController:
             raise ExecutionError("no execution backend configured")
 
         started = time.monotonic()
+        cancellation_token = cancellation_token or CancellationToken()
         stdout_capture = _OutputCapture(active_policy.max_output_bytes, bytearray())
         stderr_capture = _OutputCapture(active_policy.max_error_bytes, bytearray())
         process: ProcessHandle | None = None
@@ -313,11 +319,31 @@ class ExecutionController:
             for reader in readers:
                 reader.start()
 
-            try:
-                exit_code = process.wait(timeout=active_policy.timeout_seconds)
-            except subprocess.TimeoutExpired:
-                timed_out = True
+            cancelled = cancellation_token.is_cancelled()
+            if cancelled:
                 self._request_termination(process)
+            deadline = started + active_policy.timeout_seconds
+            exit_code: int | None = None
+
+            if not cancelled:
+                while exit_code is None:
+                    if cancellation_token.is_cancelled():
+                        cancelled = True
+                        self._request_termination(process)
+                        break
+
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        timed_out = True
+                        self._request_termination(process)
+                        break
+
+                    try:
+                        exit_code = process.wait(timeout=min(0.1, remaining))
+                    except subprocess.TimeoutExpired:
+                        continue
+
+            if exit_code is None:
                 try:
                     exit_code = process.wait(
                         timeout=active_policy.termination_grace_seconds
@@ -334,12 +360,16 @@ class ExecutionController:
                 )
 
             status = (
-                ExecutionStatus.TIMED_OUT
-                if timed_out
+                ExecutionStatus.CANCELLED
+                if cancelled
+                else (
+                    ExecutionStatus.TIMED_OUT
+                    if timed_out
                 else (
                     ExecutionStatus.COMPLETED
                     if exit_code == 0
                     else ExecutionStatus.FAILED
+                    )
                 )
             )
 
@@ -354,6 +384,9 @@ class ExecutionController:
                 stderr_truncated=stderr_capture.truncated,
                 verified=None,
                 cleanup_completed=False,
+                cancellation_reason=(
+                    cancellation_token.reason if cancelled else None
+                ),
             )
 
             if verifier is not None:
@@ -459,30 +492,7 @@ def _with_runtime_data(
         sandbox_attested=bool(attestation),
         sandbox_image_digest=image_digest,
         telemetry=telemetry,
-    )
-
-
-def _with_runtime_data(
-    result: ExecutionResult,
-    sandbox_handle: SandboxProcessHandle,
-) -> ExecutionResult:
-    attestation = getattr(sandbox_handle, "attestation", None)
-    image_digest = getattr(sandbox_handle, "image_digest", None)
-    telemetry = getattr(sandbox_handle, "telemetry", None)
-    return ExecutionResult(
-        status=result.status,
-        exit_code=result.exit_code,
-        stdout=result.stdout,
-        stderr=result.stderr,
-        duration_seconds=result.duration_seconds,
-        timed_out=result.timed_out,
-        stdout_truncated=result.stdout_truncated,
-        stderr_truncated=result.stderr_truncated,
-        verified=result.verified,
-        cleanup_completed=result.cleanup_completed,
-        sandbox_attested=bool(attestation),
-        sandbox_image_digest=image_digest,
-        telemetry=telemetry,
+        cancellation_reason=result.cancellation_reason,
     )
 
 
@@ -509,6 +519,7 @@ def _with_status(
             else cleanup_completed
         ),
         sandbox_attested=result.sandbox_attested,
+        cancellation_reason=result.cancellation_reason,
         sandbox_image_digest=result.sandbox_image_digest,
         telemetry=result.telemetry,
     )

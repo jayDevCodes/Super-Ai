@@ -1,3 +1,4 @@
+from .cancellation import CancellationToken
 from .attestation import (
     AttestationError,
     AttestationPolicy,
@@ -63,6 +64,7 @@ from .telemetry import (
 
 __all__ = [
     "AppleContainerExecutor",
+    "CancellationToken",
     "AppleContainerPreflight",
     "AppleContainerProcessHandle",
     "AppleContainerSandbox",

@@ -6,6 +6,7 @@ from typing import Callable, Mapping
 from uuid import uuid4
 
 from core.runtime.pipeline import CapabilityExecution, CapabilityExecutionRequest, CapabilityRuntime
+from core.runtime.cancellation import CancellationToken
 from core.runtime.execution import ExecutionVerifier
 from core.contracts import TaskConstraints
 from core.router import RouteCandidate
@@ -77,6 +78,12 @@ class CapabilityRuntimeStepRunner:
         if self._verifier_factory is not None:
             verifier = self._verifier_factory(route, step)
 
+        cancellation_token = context.get("__cancellation_token")
+        if cancellation_token is not None and not isinstance(
+            cancellation_token, CancellationToken
+        ):
+            raise RuntimeRunnerError("context contains invalid cancellation token")
+
         execution = self._runtime.execute(
             manifest=manifest,
             capability_spec=route.entry.spec,
@@ -87,6 +94,7 @@ class CapabilityRuntimeStepRunner:
                 workspace_root=self._workspace_root,
                 timeout_seconds=runtime_spec.timeout_seconds,
                 expected_image_digest=runtime_spec.expected_image_digest,
+                cancellation_token=cancellation_token,
             ),
             task_constraints=task_constraints,
             verifier=verifier,

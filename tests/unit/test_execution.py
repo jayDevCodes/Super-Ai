@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 
+from core.runtime.cancellation import CancellationToken
 from core.runtime.execution import (
     ExecutionController,
     ExecutionError,
@@ -180,6 +181,48 @@ class ExecutionControllerTests(unittest.TestCase):
 
         self.assertEqual(result.status, ExecutionStatus.VERIFICATION_FAILED)
         self.assertFalse(result.verified)
+
+
+    def test_cancellation_stops_running_process_and_returns_cancelled(self):
+        process = FakeProcess(returncode=0, delay=0.2)
+        controller = ExecutionController(FakeLauncher(process))
+        token = CancellationToken()
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(source_path=Path(temp), output_path=Path(temp))
+            trigger = threading.Timer(0.01, lambda: token.cancel("user requested"))
+            trigger.start()
+            try:
+                result = controller.run(
+                    plan,
+                    policy=ExecutionPolicy(
+                        timeout_seconds=1,
+                        termination_grace_seconds=0.01,
+                    ),
+                    cancellation_token=token,
+                )
+            finally:
+                trigger.cancel()
+
+        self.assertEqual(result.status, ExecutionStatus.CANCELLED)
+        self.assertEqual(result.cancellation_reason, "user requested")
+        self.assertFalse(result.timed_out)
+        self.assertTrue(process.terminated or process.killed)
+
+    def test_pre_cancelled_execution_does_not_wait_for_work(self):
+        process = FakeProcess(returncode=0, delay=0.2)
+        launcher = FakeLauncher(process)
+        controller = ExecutionController(launcher)
+        token = CancellationToken()
+        token.cancel("already cancelled")
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(source_path=Path(temp), output_path=Path(temp))
+            result = controller.run(plan, cancellation_token=token)
+
+        self.assertEqual(result.status, ExecutionStatus.CANCELLED)
+        self.assertEqual(result.cancellation_reason, "already cancelled")
+        self.assertEqual(result.exit_code, -15)
 
     def test_cleanup_failure_is_reported(self):
         process = FakeProcess(returncode=0)

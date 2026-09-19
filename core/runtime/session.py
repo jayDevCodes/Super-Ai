@@ -5,6 +5,7 @@ from typing import Mapping
 
 from core.contracts import ResourceContract, ResourceLease, ResourceScheduler, TaskConstraints
 
+from .cancellation import CancellationToken
 from .execution import (
     CleanupCallback,
     ExecutionController,
@@ -80,6 +81,7 @@ class ExecutionSession:
         policy: ExecutionPolicy | None = None,
         verifier: ExecutionVerifier | None = None,
         cleanup: CleanupCallback | None = None,
+        cancellation_token: CancellationToken | None = None,
     ) -> ExecutionResult:
         if not self.active:
             raise ExecutionSessionError("execution session is not active")
@@ -92,6 +94,7 @@ class ExecutionSession:
             policy=policy,
             verifier=verifier,
             cleanup=cleanup,
+            cancellation_token=cancellation_token,
         )
 
     def close(self) -> None:

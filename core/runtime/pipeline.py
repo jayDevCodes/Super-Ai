@@ -17,6 +17,7 @@ from core.policy import CapabilityPolicyEngine, PolicyDecisionState
 from core.audit import HashChainAuditStore
 from core.observability import TraceContext
 
+from .cancellation import CancellationToken
 from .execution import (
     ExecutionController,
     ExecutionPolicy,
@@ -44,6 +45,7 @@ class CapabilityExecutionRequest:
     timeout_seconds: float | None = None
     expected_image_digest: str | None = None
     trace_context: TraceContext | None = None
+    cancellation_token: CancellationToken | None = None
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -231,6 +233,7 @@ class CapabilityRuntime:
                     plan,
                     policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
                     verifier=verifier,
+                    cancellation_token=request.cancellation_token,
                 )
 
             self._record(
