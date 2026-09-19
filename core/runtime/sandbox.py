@@ -142,6 +142,7 @@ class AppleContainerSandbox:
             output=output,
             policy=policy,
         )
+        args.insert(2, "--rm")
 
         if policy.network == "disabled":
             execution_ready = True
