@@ -320,6 +320,8 @@ class ExecutionController:
                 reader.start()
 
             cancelled = cancellation_token.is_cancelled()
+            if cancelled:
+                self._request_termination(process)
             deadline = started + active_policy.timeout_seconds
             exit_code: int | None = None
 
