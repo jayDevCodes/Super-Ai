@@ -267,7 +267,7 @@ class CapabilityRuntime:
                     {
                         "capability_id": capability_spec.capability_id,
                         "version": capability_spec.version,
-                        "idempotency_key": request.idempotency_key,
+                        "idempotency_key_present": request.idempotency_key is not None,
                     },
                     trace_context=trace.child(),
                 )
