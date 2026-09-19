@@ -128,13 +128,15 @@ class BenchmarkSummary:
 
 
 def _plan(temp: Path) -> SandboxPlan:
+    source = temp / "source"
     output = temp / "output"
+    source.mkdir(parents=True, exist_ok=True)
     output.mkdir(parents=True, exist_ok=True)
     return SandboxPlan(
         backend="apple-container",
         image="alpine:latest",
         command=("container", "run", "--read-only", "--network", "none", "--no-dns", "alpine:latest", "sh", "-c", "echo ok"),
-        source_path=temp,
+        source_path=source,
         output_path=output,
         policy=SandboxPolicy(memory_mb=512, cpu_threads=1, timeout_seconds=5),
         execution_ready=True,
