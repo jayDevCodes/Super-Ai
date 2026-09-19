@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Mapping, Protocol
 import re
 
 
@@ -178,6 +178,7 @@ class AppleContainerSandbox:
         plan: SandboxPlan,
         *,
         container_id: str,
+        labels: Mapping[str, str] | None = None,
     ) -> tuple[str, ...]:
         """Translate a validated plan into an explicit container create command."""
         if plan.backend != self.backend_name:
@@ -203,6 +204,21 @@ class AppleContainerSandbox:
         args[1] = "create"
         args.insert(2, "--name")
         args.insert(3, container_id)
+
+        if labels:
+            normalized_labels: list[str] = []
+            for key, value in sorted(labels.items()):
+                if not key or not value or any(ch in key + value for ch in "\r\n"):
+                    raise SandboxError(
+                        "container labels must be non-empty and single-line"
+                    )
+                normalized_labels.append(f"{key}={value}")
+
+            insert_at = 4
+            for label in normalized_labels:
+                args[insert_at:insert_at] = ["--label", label]
+                insert_at += 2
+
         return tuple([*args, plan.image, *inner_command])
 
     @staticmethod

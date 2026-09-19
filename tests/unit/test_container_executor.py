@@ -75,6 +75,7 @@ class FakeRunner:
         self.process: FakeProcess | None = None
         self.fail_start = False
         self.attestation_overrides = attestation_overrides or {}
+        self.ownership_labels: dict[str, str] = {}
 
     def run(
         self,
@@ -88,6 +89,14 @@ class FakeRunner:
 
         if command[:3] == ("container", "system", "status"):
             return self._json_result({"status": "running"})
+
+        if command[:2] == ("container", "create"):
+            self.ownership_labels = {}
+            for value in command:
+                if value.startswith("com.super-ai.") and "=" in value:
+                    key, label_value = value.split("=", 1)
+                    self.ownership_labels[key] = label_value
+            return CommandResult(returncode=0, stdout=b"", stderr=b"")
 
         if command[:3] == ("container", "image", "inspect"):
             return self._json_result(
@@ -145,6 +154,7 @@ class FakeRunner:
     def _attestation_payload(self, container_id: str):
         configuration = {
             "id": container_id,
+            "labels": dict(self.ownership_labels),
             "image": {
                 "reference": "alpine:latest",
                 "descriptor": {"digest": IMAGE_DIGEST},
@@ -406,6 +416,68 @@ class AppleContainerExecutorTests(unittest.TestCase):
         self.assertTrue(
             any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
         )
+
+    def test_cleanup_refuses_unowned_container(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={"PATH": "/usr/bin"},
+            )
+
+            runner.attestation_overrides["configuration"] = {
+                "labels": {
+                    "com.super-ai.owner": "other-owner",
+                    "com.super-ai.execution": "b" * 32,
+                }
+            }
+
+            with self.assertRaisesRegex(
+                SandboxExecutionError,
+                "not owned",
+            ):
+                handle.cleanup()
+
+            delete_calls = [
+                call for call in runner.calls
+                if call[:3] == ("container", "delete", "--force")
+            ]
+            self.assertEqual(delete_calls, [])
+
+    def test_create_command_carries_execution_ownership_labels(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={"PATH": "/usr/bin"},
+            )
+
+            create_call = next(
+                call for call in runner.calls if call[:2] == ("container", "create")
+            )
+            self.assertIn("com.super-ai.owner=super-ai", create_call)
+            execution_labels = [
+                value for value in create_call
+                if value.startswith("com.super-ai.execution=")
+            ]
+            self.assertEqual(len(execution_labels), 1)
+            self.assertEqual(
+                len(execution_labels[0].split("=", 1)[1]),
+                32,
+            )
+            handle.cleanup()
 
     def test_execution_controller_uses_sandbox_lifecycle_and_evidence(self):
         runner = FakeRunner()
