@@ -32,7 +32,9 @@ from .loader import (
     LoadError,
     UntrustedSourceError,
 )
+from .ownership import OwnershipClaim, OwnershipError, new_ownership_claim, verify_container_ownership
 from .preflight import AppleContainerPreflight, ImageIdentity, PreflightError
+from .probe import RuntimeProbe, RuntimeProbeResult, RuntimeProbeState
 from .sandbox import (
     AppleContainerSandbox,
     SandboxBackend,
@@ -41,6 +43,7 @@ from .sandbox import (
     SandboxPolicy,
 )
 from .session import ExecutionSession, ExecutionSessionError
+from .integration import CapabilitySmokeTest, SmokeTestResult
 from .stager import (
     ArchiveTransport,
     CapabilityStager,
@@ -102,6 +105,15 @@ __all__ = [
     "SubprocessContainerCommandRunner",
     "SubprocessLauncher",
     "TelemetryError",
+    "OwnershipClaim",
+    "OwnershipError",
+    "new_ownership_claim",
+    "verify_container_ownership",
+    "RuntimeProbe",
+    "RuntimeProbeResult",
+    "RuntimeProbeState",
+    "CapabilitySmokeTest",
+    "SmokeTestResult",
     "UntrustedSourceError",
     "UrlLibArchiveTransport",
     "attest_container",
