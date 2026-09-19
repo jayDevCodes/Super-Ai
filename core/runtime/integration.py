@@ -6,6 +6,10 @@ from typing import Callable, Sequence
 
 from core.contracts import ResourceContract, ResourceScheduler
 
+from registry.runtime import RuntimeSpec
+
+from .admission import ExecutionAdmissionGate
+from .cleanup_guard import CleanupGuard
 from .execution import ExecutionController, ExecutionPolicy, ExecutionResult
 from .sandbox import AppleContainerSandbox, SandboxPolicy
 from .session import ExecutionSession
@@ -31,10 +35,13 @@ class CapabilitySmokeTest:
         scheduler: ResourceScheduler,
         controller: ExecutionController,
         sandbox: AppleContainerSandbox | None = None,
+        admission_gate: ExecutionAdmissionGate | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._controller = controller
         self._sandbox = sandbox or AppleContainerSandbox()
+        self._admission_gate = admission_gate
+        self._cleanup_guard = CleanupGuard()
 
     def run(
         self,
@@ -54,6 +61,23 @@ class CapabilitySmokeTest:
         output_path = Path(output_path).resolve()
         output_path.mkdir(parents=True, exist_ok=True)
         output_path.chmod(0o777)
+
+        if self._admission_gate is not None:
+            admission = self._admission_gate.evaluate(
+                RuntimeSpec(
+                    image=image,
+                    command=tuple(command),
+                    timeout_seconds=timeout_seconds,
+                    expected_image_digest=expected_image_digest,
+                    working_directory="/workspace",
+                ),
+                security_profile=ExecutionAdmissionGate.profile_for(
+                    max_processes=max_processes,
+                    network_enabled=False,
+                ),
+            )
+            if not admission.accepted:
+                raise ValueError("execution admission denied: " + "; ".join(admission.reasons))
 
         policy = SandboxPolicy(
             memory_mb=memory_mb,
@@ -89,17 +113,21 @@ class CapabilitySmokeTest:
 
             verification = _Verifier()
 
-        with ExecutionSession(
-            self._scheduler,
-            self._controller,
-            capability_id=staged.capability_id,
-            resource=resource,
-        ) as session:
-            execution = session.run(
-                plan,
-                policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
-                verifier=verification,
-            )
+        cleanup_claim = self._cleanup_guard.claim(str(output_path), staged.capability_id)
+        try:
+            with ExecutionSession(
+                self._scheduler,
+                self._controller,
+                capability_id=staged.capability_id,
+                resource=resource,
+            ) as session:
+                execution = session.run(
+                    plan,
+                    policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
+                    verifier=verification,
+                )
+        finally:
+            self._cleanup_guard.release(cleanup_claim)
 
         failures: list[str] = []
         if not execution.sandbox_attested:
