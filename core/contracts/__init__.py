@@ -10,6 +10,7 @@ from .scheduler import (
 )
 from .task import Task, TaskStep
 from .workspace import WorkspaceContract, WorkspaceContractError
+from .output import OutputContract, OutputContractError, OutputInspection
 
 __all__ = [
     "Allocation",
@@ -26,4 +27,7 @@ __all__ = [
     "TaskStep",
     "WorkspaceContract",
     "WorkspaceContractError",
+    "OutputContract",
+    "OutputContractError",
+    "OutputInspection",
 ]
