@@ -5,7 +5,11 @@ import json
 import re
 from typing import Any, Mapping
 
-from .container_executor import CommandResult
+from typing import Protocol
+
+
+class _Runner(Protocol):
+    def run(self, command, *, cwd, environment, timeout_seconds): ...
 
 
 class PreflightError(RuntimeError):
@@ -32,7 +36,7 @@ class AppleContainerPreflight:
     def __init__(self, runner, *, cwd, environment: Mapping[str, str], timeout_seconds: float = 10.0):
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
-        self._runner = runner
+        self._runner: _Runner = runner
         self._cwd = cwd
         self._environment = dict(environment)
         self._timeout_seconds = timeout_seconds
