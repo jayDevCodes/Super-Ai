@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 from urllib.parse import urlparse
 
+_SHA1_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -13,25 +14,37 @@ class ManifestValidationError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class ArtifactSpec:
-    """Immutable source/artifact identity for a dynamically loaded capability."""
+    """Immutable source identity for a dynamically loaded capability."""
 
     repository_url: str
-    pinned_ref: str
+    pinned_commit: str
     sha256: str | None = None
     subdirectory: str = ""
 
     def validate(self) -> None:
         parsed = urlparse(self.repository_url)
-        if parsed.scheme != "https" or parsed.netloc != "github.com":
+        if (
+            parsed.scheme != "https"
+            or parsed.netloc.lower() != "github.com"
+            or not parsed.path.strip("/")
+            or parsed.query
+            or parsed.fragment
+        ):
             raise ManifestValidationError(
-                "repository_url must be an https://github.com/... URL"
+                "repository_url must be a clean https://github.com/owner/repo URL"
             )
-        if not self.pinned_ref or self.pinned_ref.strip() != self.pinned_ref:
-            raise ManifestValidationError("pinned_ref must be a non-empty trimmed string")
+        if not _SHA1_RE.fullmatch(self.pinned_commit):
+            raise ManifestValidationError(
+                "pinned_commit must be a 40-character hexadecimal Git commit SHA"
+            )
         if self.sha256 is not None and not _SHA256_RE.fullmatch(self.sha256):
-            raise ManifestValidationError("sha256 must be a 64-character hexadecimal digest")
+            raise ManifestValidationError(
+                "sha256 must be a 64-character hexadecimal digest"
+            )
         if self.subdirectory.startswith("/") or ".." in self.subdirectory.split("/"):
-            raise ManifestValidationError("subdirectory must stay within the repository root")
+            raise ManifestValidationError(
+                "subdirectory must stay within the repository root"
+            )
 
 
 @dataclass(frozen=True, slots=True)
