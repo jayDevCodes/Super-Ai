@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from .runtime import RuntimeSpec
-import re
 from urllib.parse import urlparse
 
 _SHA1_RE = re.compile(r"^[0-9a-fA-F]{40}$")
