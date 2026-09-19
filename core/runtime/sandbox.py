@@ -65,6 +65,7 @@ class SandboxPlan:
     output_path: Path
     policy: SandboxPolicy
     execution_ready: bool
+    expected_image_digest: str | None = None
     safety_note: str = ""
 
 
@@ -79,6 +80,7 @@ class SandboxBackend(Protocol):
         source_path: Path,
         output_path: Path,
         policy: SandboxPolicy,
+        expected_image_digest: str | None = None,
     ) -> SandboxPlan:
         ...
 
@@ -127,6 +129,10 @@ class AppleContainerSandbox:
         policy.validate()
         if not _IMAGE_RE.fullmatch(image):
             raise SandboxError("image contains unsupported characters")
+        if expected_image_digest is not None and not _DIGEST_RE.fullmatch(
+            expected_image_digest
+        ):
+            raise SandboxError("expected_image_digest must be sha256:<64 hex>")
 
         command = _validate_command(command)
         source = _validate_path(source_path, "source_path")
@@ -162,6 +168,7 @@ class AppleContainerSandbox:
             output_path=output,
             policy=policy,
             execution_ready=execution_ready,
+            expected_image_digest=expected_image_digest,
             safety_note=note,
         )
 
@@ -244,6 +251,7 @@ class AppleContainerSandbox:
 
 
 _CONTAINER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
+_DIGEST_RE = re.compile(r"^sha256:[0-9a-fA-F]{64}$")
 
 
 def _extract_inner_command(plan: SandboxPlan) -> tuple[str, ...]:
