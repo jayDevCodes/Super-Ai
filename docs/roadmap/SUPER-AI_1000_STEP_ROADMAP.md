@@ -29,7 +29,7 @@ Status: planned; steps turn green only after implementation and CI validation.
 24. Benchmark lifecycle — define contract, tests, evidence, and resource limits where applicable.
 25. Benchmark image identity — define contract, tests, evidence, and resource limits where applicable.
 26. Integrate environment isolation — define contract, tests, evidence, and resource limits where applicable.
-27. Integrate workspace contracts — define contract, tests, evidence, and resource limits where applicable.
+27. Integrate workspace contracts — completed: WorkspaceContract integrated across request → sandbox plan → executor with path-boundary validation and tests.
 28. Integrate output contracts — define contract, tests, evidence, and resource limits where applicable.
 29. Integrate cancellation — define contract, tests, evidence, and resource limits where applicable.
 30. Integrate idempotency — define contract, tests, evidence, and resource limits where applicable.
