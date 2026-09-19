@@ -11,6 +11,7 @@ from .ownership import OwnershipClaim, OwnershipError, new_ownership_claim, veri
 from .preflight import AppleContainerPreflight, ImageIdentity, PreflightError
 from .sandbox import AppleContainerSandbox, SandboxError, SandboxPlan
 from .telemetry import AppleContainerStatsProvider, ContainerStatsCollector
+from core.security import build_sandbox_environment
 
 
 class SandboxExecutionError(RuntimeError):
@@ -307,11 +308,12 @@ class AppleContainerExecutor:
         environment: Mapping[str, str],
     ) -> SandboxProcessHandle:
         self._validate_plan(plan)
+        safe_environment = build_sandbox_environment(environment)
 
         preflight = AppleContainerPreflight(
             self._runner,
             cwd=Path(cwd),
-            environment=environment,
+            environment=safe_environment,
             timeout_seconds=self._control_timeout_seconds,
         )
         try:
