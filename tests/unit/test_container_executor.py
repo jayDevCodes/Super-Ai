@@ -72,6 +72,7 @@ class FakeRunner:
         self.terminated = False
         self.killed = False
         self.calls: list[tuple[str, ...]] = []
+        self.environments: list[dict[str, str]] = []
         self.process: FakeProcess | None = None
         self.fail_start = False
         self.attestation_overrides = attestation_overrides or {}
@@ -86,6 +87,7 @@ class FakeRunner:
         timeout_seconds,
     ):
         self.calls.append(command)
+        self.environments.append(dict(environment))
 
         if command[:3] == ("container", "system", "status"):
             return self._json_result({"status": "running"})
@@ -146,6 +148,7 @@ class FakeRunner:
 
     def popen(self, command, *, cwd, environment):
         self.calls.append(command)
+        self.environments.append(dict(environment))
         if self.fail_start:
             raise RuntimeError("start failed")
         self.process = FakeProcess(self)
@@ -562,10 +565,11 @@ class AppleContainerExecutorTests(unittest.TestCase):
             )
             handle.cleanup()
 
-        # The fake runner records command arguments but not environment maps;
-        # absence of an exception proves the explicit environment was sanitized.
-        inspect = next(call for call in runner.calls if call[:2] == ("container", "inspect"))
-        self.assertEqual(inspect[:2], ("container", "inspect"))
+        self.assertTrue(runner.environments)
+        for environment in runner.environments:
+            self.assertEqual(environment["PATH"], "/usr/bin")
+            self.assertEqual(environment["MODE"], "smoke")
+            self.assertNotIn("HOME", environment)
 
 
 if __name__ == "__main__":
