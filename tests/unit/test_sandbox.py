@@ -15,7 +15,7 @@ class AppleContainerSandboxTests(unittest.TestCase):
         output.mkdir()
         return temp, source, output
 
-    def test_default_policy_is_not_execution_ready(self):
+    def test_default_policy_is_execution_ready_with_network_none(self):
         temp, source, output = self._dirs()
         with temp:
             plan = AppleContainerSandbox().build_plan(
@@ -25,7 +25,7 @@ class AppleContainerSandboxTests(unittest.TestCase):
                 output_path=output,
                 policy=SandboxPolicy(memory_mb=512, cpu_threads=1),
             )
-            self.assertFalse(plan.execution_ready)
+            self.assertTrue(plan.execution_ready)
             self.assertIn("--read-only", plan.command)
             self.assertIn("--cap-drop", plan.command)
             self.assertIn("ALL", plan.command)
@@ -34,7 +34,12 @@ class AppleContainerSandboxTests(unittest.TestCase):
             self.assertIn("512M", plan.command)
             self.assertTrue(any("/capability" in item for item in plan.command))
             self.assertTrue(any("/workspace" in item for item in plan.command))
-            self.assertIn("network=none", plan.safety_note)
+            self.assertIn("network none", plan.safety_note.lower())
+            self.assertEqual(
+                plan.command[plan.command.index("--network") + 1],
+                "none",
+            )
+            self.assertIn("--no-dns", plan.command)
 
     def test_isolated_network_requires_named_network(self):
         temp, source, output = self._dirs()
