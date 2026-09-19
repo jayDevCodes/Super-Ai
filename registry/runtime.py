@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import re
 from urllib.parse import urlparse
 
+from core.contracts import OutputContract
+
 
 class RuntimeSpecError(ValueError):
     """Raised when runtime execution metadata is invalid."""
@@ -22,6 +24,7 @@ class RuntimeSpec:
     timeout_seconds: float = 60.0
     expected_image_digest: str | None = None
     working_directory: str = "/workspace"
+    output_contract: OutputContract = OutputContract()
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -54,3 +57,8 @@ class RuntimeSpec:
             raise RuntimeSpecError("working_directory must be an absolute container path")
         if any(char in self.working_directory for char in "\x00\r\n"):
             raise RuntimeSpecError("working_directory contains unsafe control characters")
+
+        try:
+            self.output_contract.validate()
+        except ValueError as exc:
+            raise RuntimeSpecError(f"invalid output contract: {exc}") from exc
