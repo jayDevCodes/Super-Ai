@@ -24,7 +24,12 @@ class WorkspaceContract:
     source_read_only: bool = True
     output_read_only: bool = False
 
-    def validate(self, *, require_output: bool = False) -> None:
+    def validate(
+        self,
+        *,
+        require_output: bool = False,
+        require_non_overlap: bool = True,
+    ) -> None:
         root = _resolved_existing_directory(self.root, "workspace root")
         source = _resolved_existing_directory(self.source_path, "source path")
 
@@ -68,7 +73,9 @@ class WorkspaceContract:
             # resolved output path has already been proven to stay inside root.
             pass
 
-        if _is_ancestor(source, output) or _is_ancestor(output, source):
+        if require_non_overlap and (
+            _is_ancestor(source, output) or _is_ancestor(output, source)
+        ):
             raise WorkspaceContractError(
                 "source and workspace output must not overlap"
             )
