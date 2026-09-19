@@ -34,6 +34,7 @@ from .loader import (
 )
 from .ownership import OwnershipClaim, OwnershipError, new_ownership_claim, verify_container_ownership
 from .preflight import AppleContainerPreflight, ImageIdentity, PreflightError
+from .pipeline import CapabilityExecution, CapabilityExecutionRequest, CapabilityPipelineError, CapabilityRuntime
 from .probe import RuntimeProbe, RuntimeProbeResult, RuntimeProbeState
 from .sandbox import (
     AppleContainerSandbox,
@@ -114,6 +115,10 @@ __all__ = [
     "RuntimeProbeState",
     "CapabilitySmokeTest",
     "SmokeTestResult",
+    "CapabilityExecution",
+    "CapabilityExecutionRequest",
+    "CapabilityPipelineError",
+    "CapabilityRuntime",
     "UntrustedSourceError",
     "UrlLibArchiveTransport",
     "attest_container",
