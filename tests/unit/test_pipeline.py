@@ -164,7 +164,7 @@ class PipelineTests(unittest.TestCase):
                 version="1.0.0",
                 description="demo",
                 resource=ResourceContract(256, 512),
-                permissions=frozenset({"filesystem"}),
+                permissions=frozenset(),
             )
 
             manifest = CapabilityManifest(

@@ -11,6 +11,8 @@ from core.contracts import (
     TaskConstraints,
 )
 
+from core.policy import CapabilityPolicyEngine, PolicyDecisionState
+
 from .execution import (
     ExecutionController,
     ExecutionPolicy,
@@ -66,12 +68,14 @@ class CapabilityRuntime:
         stager: CapabilityStager,
         controller: ExecutionController,
         resolver: GitHubSourceResolver | None = None,
+        policy_engine: CapabilityPolicyEngine | None = None,
         sandbox: AppleContainerSandbox | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._stager = stager
         self._controller = controller
         self._resolver = resolver or GitHubSourceResolver()
+        self._policy_engine = policy_engine or CapabilityPolicyEngine()
         self._sandbox = sandbox or AppleContainerSandbox()
 
     def execute(
@@ -96,6 +100,23 @@ class CapabilityRuntime:
                 "manifest and capability spec versions do not match"
             )
 
+        decision = self._policy_engine.evaluate(
+            capability_spec,
+            task_constraints,
+        )
+        if decision.state is PolicyDecisionState.DENY:
+            raise CapabilityPipelineError(
+                "capability execution denied: " + "; ".join(decision.reasons)
+            )
+        if (
+            decision.state is PolicyDecisionState.CONFIRM
+            and (task_constraints is None
+                 or task_constraints.require_confirmation_for_consequential_actions)
+        ):
+            raise CapabilityPipelineError(
+                "capability execution requires human confirmation"
+            )
+
         timeout_seconds = request.timeout_seconds or 60.0
         if timeout_seconds <= 0:
             raise CapabilityPipelineError("execution timeout must be > 0")
@@ -110,11 +131,7 @@ class CapabilityRuntime:
             source_plan = self._resolver.resolve(manifest)
             staged = self._stager.stage(manifest, source_plan, workdir)
 
-            network = "enabled" if (
-                task_constraints is not None
-                and task_constraints.allow_network
-                and "network" in capability_spec.permissions
-            ) else "disabled"
+            network = decision.network
 
             network_name = None
             if network == "enabled":
