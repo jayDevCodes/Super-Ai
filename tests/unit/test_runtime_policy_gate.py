@@ -128,6 +128,7 @@ class RuntimePolicyGateTests(unittest.TestCase):
                     image="alpine:3.22",
                     command=("/bin/sh",),
                     output_path=Path(temp) / "out",
+                    workspace_root=Path(temp),
                 ),
                 task_constraints=TaskConstraints(allow_network=True),
                 verifier=lambda _: True,
