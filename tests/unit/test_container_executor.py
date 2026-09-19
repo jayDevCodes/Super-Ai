@@ -559,7 +559,6 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 cwd=output,
                 environment={
                     "PATH": "/usr/bin",
-                    "HOME": "/private",
                     "MODE": "smoke",
                 },
             )
