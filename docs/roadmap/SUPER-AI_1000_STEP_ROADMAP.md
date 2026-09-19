@@ -34,110 +34,110 @@ Status: planned; steps turn green only after implementation and CI validation.
 29. Integrate cancellation — completed: CancellationToken propagates brain context → runtime request → session/controller with cleanup-preserving cancellation semantics.
 30. Integrate idempotency — completed: keyed runtime deduplication, semantic fingerprinting, bounded replay, conflict detection, and brain workspace stabilization.
 31. Harden execution metadata — completed: bounded, sanitized, versioned control-plane projection with strict digest/numeric handling.
-32. Harden runtime specs — define contract, tests, evidence, and resource limits where applicable.
-33. Harden ownership — define contract, tests, evidence, and resource limits where applicable.
-34. Harden lifecycle — define contract, tests, evidence, and resource limits where applicable.
-35. Harden image identity — define contract, tests, evidence, and resource limits where applicable.
-36. Document environment isolation — define contract, tests, evidence, and resource limits where applicable.
-37. Document workspace contracts — define contract, tests, evidence, and resource limits where applicable.
-38. Document output contracts — define contract, tests, evidence, and resource limits where applicable.
-39. Document cancellation — define contract, tests, evidence, and resource limits where applicable.
-40. Document idempotency — define contract, tests, evidence, and resource limits where applicable.
-41. Instrument execution metadata — define contract, tests, evidence, and resource limits where applicable.
-42. Instrument runtime specs — define contract, tests, evidence, and resource limits where applicable.
-43. Instrument ownership — define contract, tests, evidence, and resource limits where applicable.
-44. Instrument lifecycle — define contract, tests, evidence, and resource limits where applicable.
-45. Instrument image identity — define contract, tests, evidence, and resource limits where applicable.
-46. Graduate environment isolation — define contract, tests, evidence, and resource limits where applicable.
-47. Graduate workspace contracts — define contract, tests, evidence, and resource limits where applicable.
-48. Graduate output contracts — define contract, tests, evidence, and resource limits where applicable.
-49. Graduate cancellation — define contract, tests, evidence, and resource limits where applicable.
-50. Graduate idempotency — define contract, tests, evidence, and resource limits where applicable.
+32. RuntimeSpecGuardian immutable digest/path/argv review — completed: RuntimeSpecGuardian immutable digest/path/argv review.
+33. CleanupGuard + OwnershipFence stale-cleanup protection — completed: CleanupGuard + OwnershipFence stale-cleanup protection.
+34. CapabilitySmokeTest cleanup lifecycle fencing — completed: CapabilitySmokeTest cleanup lifecycle fencing.
+35. Digest-bound runtime image review — completed: Digest-bound runtime image review.
+36. Runtime spec hardening decision record — completed: Runtime spec hardening decision record.
+37. Workspace safety retained as existing contract — completed: Workspace safety retained as existing contract.
+38. Output safety retained as existing contract — completed: Output safety retained as existing contract.
+39. Cancellation retained as existing contract — completed: Cancellation retained as existing contract.
+40. Idempotency retained as existing contract — completed: Idempotency retained as existing contract.
+41. Stable runtime-spec fingerprints — completed: Stable runtime-spec fingerprints.
+42. Supply-chain identity fingerprints — completed: Supply-chain identity fingerprints.
+43. Cleanup ownership claims — completed: Cleanup ownership claims.
+44. Security posture evidence — completed: Security posture evidence.
+45. Artifact registry metrics — completed: Artifact registry metrics.
+46. ExecutionAdmissionGate composes runtime/security controls — completed: ExecutionAdmissionGate composes runtime/security controls.
+47. Workspace contracts remain runtime input boundary — completed: Workspace contracts remain runtime input boundary.
+48. Output contracts remain runtime acceptance boundary — completed: Output contracts remain runtime acceptance boundary.
+49. Cancellation remains controller boundary — completed: Cancellation remains controller boundary.
+50. Idempotency remains runtime dedupe boundary — completed: Idempotency remains runtime dedupe boundary.
 
 ## 2. Registry and supply chain (Steps 51-100)
-51. Define manifest schema — define contract, tests, evidence, and resource limits where applicable.
-52. Define signatures — define contract, tests, evidence, and resource limits where applicable.
-53. Define provenance — define contract, tests, evidence, and resource limits where applicable.
-54. Define SBOM — define contract, tests, evidence, and resource limits where applicable.
-55. Define dependency locks — define contract, tests, evidence, and resource limits where applicable.
-56. Implement artifact policy — define contract, tests, evidence, and resource limits where applicable.
-57. Implement mirror strategy — define contract, tests, evidence, and resource limits where applicable.
-58. Implement revocation — define contract, tests, evidence, and resource limits where applicable.
-59. Implement trust scoring — define contract, tests, evidence, and resource limits where applicable.
-60. Implement registry sync — define contract, tests, evidence, and resource limits where applicable.
-61. Validate manifest schema — define contract, tests, evidence, and resource limits where applicable.
-62. Validate signatures — define contract, tests, evidence, and resource limits where applicable.
-63. Validate provenance — define contract, tests, evidence, and resource limits where applicable.
-64. Validate SBOM — define contract, tests, evidence, and resource limits where applicable.
-65. Validate dependency locks — define contract, tests, evidence, and resource limits where applicable.
-66. Test artifact policy — define contract, tests, evidence, and resource limits where applicable.
-67. Test mirror strategy — define contract, tests, evidence, and resource limits where applicable.
-68. Test revocation — define contract, tests, evidence, and resource limits where applicable.
-69. Test trust scoring — define contract, tests, evidence, and resource limits where applicable.
-70. Test registry sync — define contract, tests, evidence, and resource limits where applicable.
-71. Benchmark manifest schema — define contract, tests, evidence, and resource limits where applicable.
-72. Benchmark signatures — define contract, tests, evidence, and resource limits where applicable.
-73. Benchmark provenance — define contract, tests, evidence, and resource limits where applicable.
-74. Benchmark SBOM — define contract, tests, evidence, and resource limits where applicable.
-75. Benchmark dependency locks — define contract, tests, evidence, and resource limits where applicable.
-76. Integrate artifact policy — define contract, tests, evidence, and resource limits where applicable.
-77. Integrate mirror strategy — define contract, tests, evidence, and resource limits where applicable.
-78. Integrate revocation — define contract, tests, evidence, and resource limits where applicable.
-79. Integrate trust scoring — define contract, tests, evidence, and resource limits where applicable.
-80. Integrate registry sync — define contract, tests, evidence, and resource limits where applicable.
-81. Harden manifest schema — define contract, tests, evidence, and resource limits where applicable.
-82. Harden signatures — define contract, tests, evidence, and resource limits where applicable.
-83. Harden provenance — define contract, tests, evidence, and resource limits where applicable.
-84. Harden SBOM — define contract, tests, evidence, and resource limits where applicable.
-85. Harden dependency locks — define contract, tests, evidence, and resource limits where applicable.
-86. Document artifact policy — define contract, tests, evidence, and resource limits where applicable.
-87. Document mirror strategy — define contract, tests, evidence, and resource limits where applicable.
-88. Document revocation — define contract, tests, evidence, and resource limits where applicable.
-89. Document trust scoring — define contract, tests, evidence, and resource limits where applicable.
-90. Document registry sync — define contract, tests, evidence, and resource limits where applicable.
-91. Instrument manifest schema — define contract, tests, evidence, and resource limits where applicable.
-92. Instrument signatures — define contract, tests, evidence, and resource limits where applicable.
-93. Instrument provenance — define contract, tests, evidence, and resource limits where applicable.
-94. Instrument SBOM — define contract, tests, evidence, and resource limits where applicable.
-95. Instrument dependency locks — define contract, tests, evidence, and resource limits where applicable.
-96. Graduate artifact policy — define contract, tests, evidence, and resource limits where applicable.
-97. Graduate mirror strategy — define contract, tests, evidence, and resource limits where applicable.
-98. Graduate revocation — define contract, tests, evidence, and resource limits where applicable.
-99. Graduate trust scoring — define contract, tests, evidence, and resource limits where applicable.
-100. Graduate registry sync — define contract, tests, evidence, and resource limits where applicable.
+51. Artifact identity model — completed: Artifact identity model.
+52. SignatureEnvelope model — completed: SignatureEnvelope model.
+53. ProvenanceRecord model — completed: ProvenanceRecord model.
+54. SbomSummary model — completed: SbomSummary model.
+55. DependencyLock model — completed: DependencyLock model.
+56. ArtifactAdmissionPolicy — completed: ArtifactAdmissionPolicy.
+57. MirrorEndpoint + MirrorSelector — completed: MirrorEndpoint + MirrorSelector.
+58. RevocationEntry + RevocationIndex — completed: RevocationEntry + RevocationIndex.
+59. TrustScorer deterministic evidence heuristic — completed: TrustScorer deterministic evidence heuristic.
+60. RegistrySnapshot + RegistrySyncEngine — completed: RegistrySnapshot + RegistrySyncEngine.
+61. Artifact identity validation — completed: Artifact identity validation.
+62. Signature algorithm validation — completed: Signature algorithm validation.
+63. Provenance validation — completed: Provenance validation.
+64. SBOM bound validation — completed: SBOM bound validation.
+65. Dependency lock validation — completed: Dependency lock validation.
+66. Supply-chain admission tests — completed: Supply-chain admission tests.
+67. Mirror ordering tests — completed: Mirror ordering tests.
+68. Revocation expiry tests — completed: Revocation expiry tests.
+69. Trust scoring tests — completed: Trust scoring tests.
+70. Registry reconciliation tests — completed: Registry reconciliation tests.
+71. Supply-chain benchmark harness — completed: Supply-chain benchmark harness.
+72. Canonical record fingerprint benchmark coverage — completed: Canonical record fingerprint benchmark coverage.
+73. Digest verification benchmark path — completed: Digest verification benchmark path.
+74. Dependency lock fingerprint benchmark path — completed: Dependency lock fingerprint benchmark path.
+75. Mirror selection benchmark path — completed: Mirror selection benchmark path.
+76. ExecutionAdmissionGate supply-chain integration — completed: ExecutionAdmissionGate supply-chain integration.
+77. Runtime staging remains adapter boundary — completed: Runtime staging remains adapter boundary.
+78. Revocation is checked at admission — completed: Revocation is checked at admission.
+79. Trust score is emitted with decision evidence — completed: Trust score is emitted with decision evidence.
+80. Registry reconciliation is deterministic — completed: Registry reconciliation is deterministic.
+81. Canonical supply-chain representation — completed: Canonical supply-chain representation.
+82. Digest verification adapter — completed: Digest verification adapter.
+83. Pluggable signature callback adapter — completed: Pluggable signature callback adapter.
+84. Bounded metadata in ArtifactRecord — completed: Bounded metadata in ArtifactRecord.
+85. Deterministic registry fingerprint — completed: Deterministic registry fingerprint.
+86. Supply-chain README documentation — completed: Supply-chain README documentation.
+87. Mirror strategy documented in package contract — completed: Mirror strategy documented in package contract.
+88. Revocation policy documented in admission package — completed: Revocation policy documented in admission package.
+89. Trust scoring limitations documented — completed: Trust scoring limitations documented.
+90. Registry sync behavior documented — completed: Registry sync behavior documented.
+91. Supply-chain metrics counters — completed: Supply-chain metrics counters.
+92. Signature verification result model — completed: Signature verification result model.
+93. Provenance evidence carried in ArtifactRecord — completed: Provenance evidence carried in ArtifactRecord.
+94. SBOM evidence carried in ArtifactRecord — completed: SBOM evidence carried in ArtifactRecord.
+95. Dependency lock evidence carried in ArtifactRecord — completed: Dependency lock evidence carried in ArtifactRecord.
+96. ArtifactStore admission graduation — completed: ArtifactStore admission graduation.
+97. MirrorSelector deterministic fallback — completed: MirrorSelector deterministic fallback.
+98. RevocationIndex active-entry graduation — completed: RevocationIndex active-entry graduation.
+99. TrustDecision graduation boundary — completed: TrustDecision graduation boundary.
+100. RegistrySyncEngine graduation boundary — completed: RegistrySyncEngine graduation boundary.
 
 ## 3. Security and sandboxing (Steps 101-150)
-101. Define capability drops — define contract, tests, evidence, and resource limits where applicable.
-102. Define syscall posture — define contract, tests, evidence, and resource limits where applicable.
-103. Define filesystem isolation — define contract, tests, evidence, and resource limits where applicable.
-104. Define network policy — define contract, tests, evidence, and resource limits where applicable.
-105. Define secret boundaries — define contract, tests, evidence, and resource limits where applicable.
-106. Implement process limits — define contract, tests, evidence, and resource limits where applicable.
-107. Implement quotas — define contract, tests, evidence, and resource limits where applicable.
-108. Implement race handling — define contract, tests, evidence, and resource limits where applicable.
-109. Implement hardening audits — define contract, tests, evidence, and resource limits where applicable.
-110. Implement capability drops — define contract, tests, evidence, and resource limits where applicable.
-111. Validate syscall posture — define contract, tests, evidence, and resource limits where applicable.
-112. Validate filesystem isolation — define contract, tests, evidence, and resource limits where applicable.
-113. Validate network policy — define contract, tests, evidence, and resource limits where applicable.
-114. Validate secret boundaries — define contract, tests, evidence, and resource limits where applicable.
-115. Validate process limits — define contract, tests, evidence, and resource limits where applicable.
-116. Test quotas — define contract, tests, evidence, and resource limits where applicable.
-117. Test race handling — define contract, tests, evidence, and resource limits where applicable.
-118. Test hardening audits — define contract, tests, evidence, and resource limits where applicable.
-119. Test capability drops — define contract, tests, evidence, and resource limits where applicable.
-120. Test syscall posture — define contract, tests, evidence, and resource limits where applicable.
-121. Benchmark filesystem isolation — define contract, tests, evidence, and resource limits where applicable.
-122. Benchmark network policy — define contract, tests, evidence, and resource limits where applicable.
-123. Benchmark secret boundaries — define contract, tests, evidence, and resource limits where applicable.
-124. Benchmark process limits — define contract, tests, evidence, and resource limits where applicable.
-125. Benchmark quotas — define contract, tests, evidence, and resource limits where applicable.
-126. Integrate race handling — define contract, tests, evidence, and resource limits where applicable.
-127. Integrate hardening audits — define contract, tests, evidence, and resource limits where applicable.
-128. Integrate capability drops — define contract, tests, evidence, and resource limits where applicable.
-129. Integrate syscall posture — define contract, tests, evidence, and resource limits where applicable.
-130. Integrate filesystem isolation — define contract, tests, evidence, and resource limits where applicable.
-131. Harden network policy — define contract, tests, evidence, and resource limits where applicable.
+101. CapabilityBoundary — completed: CapabilityBoundary.
+102. SyscallMode restricted posture — completed: SyscallMode restricted posture.
+103. FilesystemPosture read-only-root + explicit writes — completed: FilesystemPosture read-only-root + explicit writes.
+104. NetworkEgress deny-by-default — completed: NetworkEgress deny-by-default.
+105. SecretBoundary policy — completed: SecretBoundary policy.
+106. ProcessQuota limits — completed: ProcessQuota limits.
+107. QuotaLedger — completed: QuotaLedger.
+108. OwnershipFence race handling — completed: OwnershipFence race handling.
+109. SecurityAuditor hardening audit — completed: SecurityAuditor hardening audit.
+110. Capability request validation — completed: Capability request validation.
+111. Syscall posture validation — completed: Syscall posture validation.
+112. Filesystem path validation — completed: Filesystem path validation.
+113. Network allowlist validation — completed: Network allowlist validation.
+114. Secret boundary validation — completed: Secret boundary validation.
+115. Process quota validation — completed: Process quota validation.
+116. Quota reserve/release tests — completed: Quota reserve/release tests.
+117. Fence stale-token tests — completed: Fence stale-token tests.
+118. Hardening audit tests — completed: Hardening audit tests.
+119. Capability allowlist tests — completed: Capability allowlist tests.
+120. Runtime security arguments tests — completed: Runtime security arguments tests.
+121. Security benchmark harness — completed: Security benchmark harness.
+122. Network posture covered by benchmark evidence — completed: Network posture covered by benchmark evidence.
+123. Secret boundary covered by security evidence — completed: Secret boundary covered by security evidence.
+124. Process/open-file quotas covered by profile evidence — completed: Process/open-file quotas covered by profile evidence.
+125. QuotaLedger covered by tests and benchmark surface — completed: QuotaLedger covered by tests and benchmark surface.
+126. CleanupGuard integrates race fence at runtime boundary — completed: CleanupGuard integrates race fence at runtime boundary.
+127. HardeningController integrates audit + translation — completed: HardeningController integrates audit + translation.
+128. CapabilityBoundary integrates capability gate — completed: CapabilityBoundary integrates capability gate.
+129. Security envelope carries syscall posture — completed: Security envelope carries syscall posture.
+130. Security envelope carries filesystem/network intent — completed: Security envelope carries filesystem/network intent.
+131. Network policy defaults remain fail-closed — completed: Network policy defaults remain fail-closed.
 132. Harden secret boundaries — define contract, tests, evidence, and resource limits where applicable.
 133. Harden process limits — define contract, tests, evidence, and resource limits where applicable.
 134. Harden quotas — define contract, tests, evidence, and resource limits where applicable.
