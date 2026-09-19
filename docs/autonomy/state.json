@@ -7,6 +7,21 @@
   "next_step": "Harden execution metadata",
   "autonomous_mode": "active",
   "requires_user_prompt_for_routine_steps": false,
-  "per_step_loop": ["inspect","research","design","implement","test","ci","repair","document","merge","checkpoint"],
-  "safety_gate": "user confirmation required only for credentials, irreversible external actions, destructive actions outside controlled workspace, or genuinely ambiguous consequential decisions"
+  "per_step_loop": [
+    "inspect",
+    "research",
+    "design",
+    "implement",
+    "test",
+    "ci",
+    "repair",
+    "document",
+    "merge",
+    "checkpoint"
+  ],
+  "safety_gate": "user confirmation required only for credentials, irreversible external actions, destructive actions outside controlled workspace, or genuinely ambiguous consequential decisions",
+  "continuity_context_path": ".super-ai/continuity/CURRENT_CONTEXT.md",
+  "continuity_handoff_path": ".super-ai/continuity/AGENT_HANDOFF.md",
+  "continuity_journal_path": ".super-ai/continuity/JOURNAL.md",
+  "continuity_policy": "append structured engineering context before each autonomous checkpoint; never store secrets or private chain-of-thought"
 }

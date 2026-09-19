@@ -86,3 +86,13 @@ Every runtime or model-related step must preserve the principle:
 ## Autonomy checkpoint file
 
 The machine-readable checkpoint is docs/autonomy/state.json.
+
+## Persistent agent continuity gate
+
+Every agent/session working on this program must read `.super-ai/continuity/README.md`, `.super-ai/continuity/CURRENT_CONTEXT.md`, and `.super-ai/continuity/AGENT_HANDOFF.md` before starting a step.
+
+At the end of every validated step, the agent must update `CURRENT_CONTEXT.md` and append a compact entry to `JOURNAL.md` before advancing `docs/autonomy/state.json`.
+
+The continuity layer preserves structured engineering facts, decision rationale, research assumptions, test evidence, failure lessons, and handoff state. It must never contain secrets, credentials, private user data, or private chain-of-thought.
+
+The repository is the durable handoff surface: a new agent must be able to resume from source code, tests, ADRs, roadmap/state, and the continuity folder without relying on an unavailable prior chat session.
