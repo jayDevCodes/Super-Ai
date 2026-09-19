@@ -114,6 +114,7 @@ class IdempotencyCoordinator:
 
     def claim(self, key: str | None, fingerprint: str) -> IdempotencyClaim:
         """Claim a key or wait for/replay an existing identical request."""
+        _validate_fingerprint(fingerprint)
         if key is None:
             return IdempotencyClaim(
                 self,
@@ -122,8 +123,6 @@ class IdempotencyCoordinator:
                 owner=True,
             )
         normalized_key = _validate_key(key)
-        _validate_fingerprint(fingerprint)
-
         while True:
             with self._lock:
                 self._purge_expired_locked()
