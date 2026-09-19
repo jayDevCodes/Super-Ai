@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import hashlib
 from typing import Callable, Mapping
 from uuid import uuid4
 
@@ -68,10 +69,18 @@ class CapabilityRuntimeStepRunner:
             ):
                 raise RuntimeRunnerError("context contains invalid task constraints")
 
+        idempotency_key = context.get("__idempotency_key")
+        if idempotency_key is not None and not isinstance(idempotency_key, str):
+            raise RuntimeRunnerError("context contains invalid idempotency key")
+
+        run_id = uuid4().hex
+        if idempotency_key is not None:
+            run_id = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()[:32]
+
         output_path = (
             self._workspace_root
             / manifest.capability_id.replace("/", "_")
-            / uuid4().hex
+            / run_id
         )
 
         verifier: ExecutionVerifier | None = None
@@ -95,6 +104,7 @@ class CapabilityRuntimeStepRunner:
                 timeout_seconds=runtime_spec.timeout_seconds,
                 expected_image_digest=runtime_spec.expected_image_digest,
                 cancellation_token=cancellation_token,
+                idempotency_key=idempotency_key,
             ),
             task_constraints=task_constraints,
             verifier=verifier,
