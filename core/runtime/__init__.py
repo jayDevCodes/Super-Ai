@@ -46,6 +46,15 @@ from .sandbox import (
 )
 from .session import ExecutionSession, ExecutionSessionError
 from .integration import CapabilitySmokeTest, SmokeTestResult
+from .idempotency import (
+    IdempotencyClaim,
+    IdempotencyClaimError,
+    IdempotencyConflictError,
+    IdempotencyCoordinator,
+    IdempotencyError,
+    IdempotencyReplay,
+    request_fingerprint,
+)
 from .stager import (
     ArchiveTransport,
     CapabilityStager,
@@ -117,6 +126,12 @@ __all__ = [
     "RuntimeProbeState",
     "CapabilitySmokeTest",
     "SmokeTestResult",
+    "IdempotencyClaim",
+    "IdempotencyClaimError",
+    "IdempotencyConflictError",
+    "IdempotencyCoordinator",
+    "IdempotencyError",
+    "IdempotencyReplay",
     "CapabilityExecution",
     "CapabilityExecutionRequest",
     "CapabilityPipelineError",
@@ -124,4 +139,5 @@ __all__ = [
     "UntrustedSourceError",
     "UrlLibArchiveTransport",
     "attest_container",
+    "request_fingerprint",
 ]
