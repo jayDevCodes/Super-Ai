@@ -59,6 +59,9 @@ class ExecutionResult:
     stderr_truncated: bool
     verified: bool | None
     cleanup_completed: bool
+    sandbox_attested: bool = False
+    sandbox_image_digest: str | None = None
+    telemetry: Mapping[str, object] | None = None
 
 
 class ProcessHandle(Protocol):
@@ -382,6 +385,9 @@ class ExecutionController:
                 except Exception as exc:
                     cleanup_error = exc
 
+        if result is not None and sandbox_handle is not None:
+            result = _with_runtime_data(result, sandbox_handle)
+
         if cleanup_error is not None:
             if result is not None:
                 return _with_status(
@@ -418,6 +424,54 @@ class ExecutionController:
         process.terminate()
 
 
+def _with_runtime_data(
+    result: ExecutionResult,
+    sandbox_handle: SandboxProcessHandle,
+) -> ExecutionResult:
+    attestation = getattr(sandbox_handle, "attestation", None)
+    image_digest = getattr(sandbox_handle, "image_digest", None)
+    telemetry = getattr(sandbox_handle, "telemetry", None)
+    return ExecutionResult(
+        status=result.status,
+        exit_code=result.exit_code,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        duration_seconds=result.duration_seconds,
+        timed_out=result.timed_out,
+        stdout_truncated=result.stdout_truncated,
+        stderr_truncated=result.stderr_truncated,
+        verified=result.verified,
+        cleanup_completed=result.cleanup_completed,
+        sandbox_attested=bool(attestation),
+        sandbox_image_digest=image_digest,
+        telemetry=telemetry,
+    )
+
+
+def _with_runtime_data(
+    result: ExecutionResult,
+    sandbox_handle: SandboxProcessHandle,
+) -> ExecutionResult:
+    attestation = getattr(sandbox_handle, "attestation", None)
+    image_digest = getattr(sandbox_handle, "image_digest", None)
+    telemetry = getattr(sandbox_handle, "telemetry", None)
+    return ExecutionResult(
+        status=result.status,
+        exit_code=result.exit_code,
+        stdout=result.stdout,
+        stderr=result.stderr,
+        duration_seconds=result.duration_seconds,
+        timed_out=result.timed_out,
+        stdout_truncated=result.stdout_truncated,
+        stderr_truncated=result.stderr_truncated,
+        verified=result.verified,
+        cleanup_completed=result.cleanup_completed,
+        sandbox_attested=bool(attestation),
+        sandbox_image_digest=image_digest,
+        telemetry=telemetry,
+    )
+
+
 def _with_status(
     result: ExecutionResult,
     status: ExecutionStatus,
@@ -440,4 +494,7 @@ def _with_status(
             if cleanup_completed is None
             else cleanup_completed
         ),
+        sandbox_attested=result.sandbox_attested,
+        sandbox_image_digest=result.sandbox_image_digest,
+        telemetry=result.telemetry,
     )

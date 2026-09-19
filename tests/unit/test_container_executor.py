@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import io
 import subprocess
+import time
 import unittest
 
 from core.runtime.container_executor import (
@@ -12,13 +14,16 @@ from core.runtime.container_executor import (
     SandboxExecutionError,
 )
 from core.runtime.execution import ExecutionController, ExecutionPolicy, ExecutionStatus
-from core.runtime.sandbox import AppleContainerSandbox, SandboxPlan, SandboxPolicy
+from core.runtime.sandbox import SandboxPlan, SandboxPolicy
+
+
+IMAGE_DIGEST = "sha256:" + ("a" * 64)
 
 
 class FakeProcess:
-    def __init__(self, runner: "FakeRunner", *, returncode: int = 0):
+    def __init__(self, runner: "FakeRunner"):
         self.runner = runner
-        self._returncode = returncode
+        self._returncode = 0
         self._first_wait = True
         self._stdout = io.BytesIO(b"container-ok\n")
         self._stderr = io.BytesIO(b"")
@@ -57,13 +62,19 @@ class FakeProcess:
 
 
 class FakeRunner:
-    def __init__(self, *, timeout_mode: bool = False):
+    def __init__(
+        self,
+        *,
+        timeout_mode: bool = False,
+        attestation_overrides: dict | None = None,
+    ):
         self.timeout_mode = timeout_mode
         self.terminated = False
         self.killed = False
         self.calls: list[tuple[str, ...]] = []
         self.process: FakeProcess | None = None
         self.fail_start = False
+        self.attestation_overrides = attestation_overrides or {}
 
     def run(
         self,
@@ -74,12 +85,54 @@ class FakeRunner:
         timeout_seconds,
     ):
         self.calls.append(command)
+
+        if command[:3] == ("container", "system", "status"):
+            return self._json_result({"status": "running"})
+
+        if command[:3] == ("container", "image", "inspect"):
+            return self._json_result(
+                [
+                    {
+                        "configuration": {
+                            "name": "alpine:latest",
+                            "descriptor": {"digest": IMAGE_DIGEST},
+                        }
+                    }
+                ]
+            )
+
+        if command[:2] == ("container", "inspect"):
+            return self._json_result(self._attestation_payload(command[-1]))
+
+        if command[:4] == (
+            "container",
+            "stats",
+            "--format",
+            "json",
+        ):
+            return self._json_result(
+                [
+                    {
+                        "id": command[-1],
+                        "memoryUsageBytes": 16 * 1024 * 1024,
+                        "memoryLimitBytes": 512 * 1024 * 1024,
+                        "cpuUsageUsec": 1_000_000,
+                        "networkRxBytes": 0,
+                        "networkTxBytes": 0,
+                        "blockReadBytes": 123,
+                        "blockWriteBytes": 456,
+                        "numProcesses": 1,
+                    }
+                ]
+            )
+
         if command[:2] == ("container", "stop"):
             if self.process is not None:
                 self.process.terminate()
         elif command[:2] == ("container", "kill"):
             if self.process is not None:
                 self.process.kill()
+
         return CommandResult(returncode=0, stdout=b"", stderr=b"")
 
     def popen(self, command, *, cwd, environment):
@@ -88,6 +141,51 @@ class FakeRunner:
             raise RuntimeError("start failed")
         self.process = FakeProcess(self)
         return self.process
+
+    def _attestation_payload(self, container_id: str):
+        configuration = {
+            "id": container_id,
+            "image": {
+                "reference": "alpine:latest",
+                "descriptor": {"digest": IMAGE_DIGEST},
+            },
+            "mounts": [
+                {
+                    "source": "/host/capability",
+                    "destination": "/capability",
+                    "options": ["ro"],
+                },
+                {
+                    "source": "/host/output",
+                    "destination": "/workspace",
+                    "options": [],
+                },
+            ],
+            "resources": {
+                "cpus": 1,
+                "memoryInBytes": 512 * 1024 * 1024,
+            },
+            "readOnly": True,
+            "capDrop": ["ALL"],
+            "initProcess": {
+                "user": {"id": {"uid": 65532, "gid": 65532}}
+            },
+        }
+        status = {"state": "created", "networks": []}
+        for key, value in self.attestation_overrides.items():
+            if key == "configuration":
+                configuration = {**configuration, **value}
+            elif key == "status":
+                status = {**status, **value}
+        return [{"configuration": configuration, "status": status}]
+
+    @staticmethod
+    def _json_result(payload) -> CommandResult:
+        return CommandResult(
+            returncode=0,
+            stdout=json.dumps(payload).encode("utf-8"),
+            stderr=b"",
+        )
 
 
 class AppleContainerExecutorTests(unittest.TestCase):
@@ -122,7 +220,7 @@ class AppleContainerExecutorTests(unittest.TestCase):
         values.update(overrides)
         return SandboxPlan(**values)
 
-    def test_launch_creates_starts_and_cleans_container(self):
+    def test_launch_attests_before_start_and_records_image_digest(self):
         runner = FakeRunner()
         executor = AppleContainerExecutor(
             runner=runner,
@@ -140,40 +238,40 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 environment={"PATH": "/usr/bin"},
             )
 
-            self.assertEqual(runner.calls[0][0:4], ("container", "create", "--name", runner.calls[0][3]))
-            self.assertIn("--network", runner.calls[0])
-            self.assertEqual(
-                runner.calls[0][runner.calls[0].index("--network") + 1],
-                "none",
+            commands = runner.calls
+            inspect_index = next(
+                i for i, call in enumerate(commands)
+                if call[:2] == ("container", "inspect")
             )
-            self.assertNotIn("--rm", runner.calls[0])
-            self.assertEqual(
-                runner.calls[1][:3],
-                ("container", "start", "--attach"),
+            start_index = next(
+                i for i, call in enumerate(commands)
+                if call[:3] == ("container", "start", "--attach")
             )
-
+            self.assertLess(inspect_index, start_index)
+            self.assertTrue(handle.attestation["passed"])
+            self.assertEqual(handle.image_digest, IMAGE_DIGEST)
             handle.cleanup()
-            handle.cleanup()
 
-        delete_calls = [call for call in runner.calls if call[:3] == ("container", "delete", "--force")]
-        self.assertEqual(len(delete_calls), 1)
-
-    def test_disabled_network_plan_without_none_is_rejected(self):
-        runner = FakeRunner()
+    def test_launch_rejects_attestation_mismatch_before_start(self):
+        runner = FakeRunner(
+            attestation_overrides={
+                "configuration": {
+                    "resources": {
+                        "cpus": 2,
+                        "memoryInBytes": 512 * 1024 * 1024,
+                    }
+                }
+            }
+        )
         executor = AppleContainerExecutor(runner=runner)
 
         with TemporaryDirectory() as temp:
             output = Path(temp) / "output"
             output.mkdir()
-            plan = self._plan(
-                temp,
-                source_path=Path(temp),
-                output_path=output,
-                command=("container", "run", "alpine:latest", "true"),
-            )
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
             with self.assertRaisesRegex(
                 SandboxExecutionError,
-                "--network none",
+                "attestation failed",
             ):
                 executor.launch(
                     plan,
@@ -181,48 +279,80 @@ class AppleContainerExecutorTests(unittest.TestCase):
                     environment={"PATH": "/usr/bin"},
                 )
 
-        self.assertEqual(runner.calls, [])
+        self.assertFalse(
+            any(call[:3] == ("container", "start", "--attach") for call in runner.calls)
+        )
+        self.assertTrue(
+            any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
+        )
 
-    def test_start_failure_deletes_created_container(self):
+    def test_launch_enforces_pinned_image_digest(self):
         runner = FakeRunner()
-        runner.fail_start = True
         executor = AppleContainerExecutor(runner=runner)
 
+        wrong_digest = "sha256:" + ("b" * 64)
         with TemporaryDirectory() as temp:
             output = Path(temp) / "output"
             output.mkdir()
-            plan = self._plan(temp, source_path=Path(temp), output_path=output)
-            with self.assertRaisesRegex(SandboxExecutionError, "start failed"):
+            plan = self._plan(
+                temp,
+                source_path=Path(temp),
+                output_path=output,
+                expected_image_digest=wrong_digest,
+            )
+            with self.assertRaisesRegex(SandboxExecutionError, "digest"):
                 executor.launch(
                     plan,
                     cwd=output,
                     environment={"PATH": "/usr/bin"},
                 )
 
-        self.assertTrue(
-            any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
+        self.assertFalse(
+            any(call[:2] == ("container", "create") for call in runner.calls)
         )
 
-    def test_execution_controller_uses_sandbox_lifecycle_and_releases_it(self):
+    def test_launch_creates_starts_and_cleans_container(self):
         runner = FakeRunner()
-        executor = AppleContainerExecutor(runner=runner)
+        executor = AppleContainerExecutor(runner=runner, control_timeout_seconds=1)
 
         with TemporaryDirectory() as temp:
             output = Path(temp) / "output"
             output.mkdir()
             plan = self._plan(temp, source_path=Path(temp), output_path=output)
-            controller = ExecutionController(sandbox_executor=executor)
-            result = controller.run(plan)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={"PATH": "/usr/bin"},
+            )
 
-        self.assertEqual(result.status, ExecutionStatus.COMPLETED)
-        self.assertEqual(result.stdout, "container-ok\n")
-        self.assertTrue(
-            any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
-        )
+            self.assertEqual(runner.calls[0][:2], ("container", "system"))
+            self.assertEqual(
+                runner.calls[1][:3],
+                ("container", "image", "inspect"),
+            )
+
+            create_call = next(
+                call for call in runner.calls if call[:2] == ("container", "create")
+            )
+            self.assertIn("--network", create_call)
+            self.assertEqual(
+                create_call[create_call.index("--network") + 1],
+                "none",
+            )
+            self.assertNotIn("--rm", create_call)
+
+            handle.cleanup()
+            handle.cleanup()
+
+        delete_calls = [
+            call for call in runner.calls
+            if call[:3] == ("container", "delete", "--force")
+        ]
+        self.assertEqual(len(delete_calls), 1)
 
     def test_timeout_requests_container_stop_and_cleanup(self):
         runner = FakeRunner(timeout_mode=True)
-        executor = AppleContainerExecutor(runner=runner)
+        executor = AppleContainerExecutor(runner=runner, control_timeout_seconds=1)
 
         with TemporaryDirectory() as temp:
             output = Path(temp) / "output"
@@ -254,6 +384,51 @@ class AppleContainerExecutorTests(unittest.TestCase):
         self.assertTrue(
             any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
         )
+        self.assertTrue(result.sandbox_attested)
+        self.assertEqual(result.sandbox_image_digest, IMAGE_DIGEST)
+
+    def test_start_failure_deletes_created_container(self):
+        runner = FakeRunner()
+        runner.fail_start = True
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            with self.assertRaisesRegex(SandboxExecutionError, "start failed"):
+                executor.launch(
+                    plan,
+                    cwd=output,
+                    environment={"PATH": "/usr/bin"},
+                )
+
+        self.assertTrue(
+            any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
+        )
+
+    def test_execution_controller_uses_sandbox_lifecycle_and_evidence(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(
+            runner=runner,
+            telemetry_interval_seconds=0.001,
+        )
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={"PATH": "/usr/bin"},
+            )
+            time.sleep(0.01)
+            handle.cleanup()
+
+        self.assertTrue(handle.telemetry["sample_count"] >= 1)
+        self.assertIn("network_activity_observed", handle.telemetry)
+        self.assertFalse(handle.telemetry["network_activity_observed"])
 
     def test_executor_rejects_non_apple_backend(self):
         runner = FakeRunner()
@@ -268,7 +443,10 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 output_path=output,
                 backend="fake",
             )
-            with self.assertRaisesRegex(SandboxExecutionError, "unsupported sandbox backend"):
+            with self.assertRaisesRegex(
+                SandboxExecutionError,
+                "unsupported sandbox backend",
+            ):
                 executor.launch(
                     plan,
                     cwd=output,
