@@ -61,6 +61,22 @@ class OutputContractTests(unittest.TestCase):
         self.assertFalse(inspection.passed)
         self.assertTrue(any("symlink" in item for item in inspection.violations))
 
+    def test_control_characters_in_required_paths_are_rejected(self):
+        with self.assertRaises(OutputContractError):
+            OutputContract(required_files=("bad\x00name.txt",)).validate()
+        with self.assertRaises(OutputContractError):
+            OutputContract(required_files=("bad\nname.txt",)).validate()
+
+    def test_output_inspection_limits_violation_evidence(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            for index in range(40):
+                (root / f"link-{index}").symlink_to(root, target_is_directory=True)
+            inspection = OutputContract(max_files=1).inspect(root)
+
+        self.assertFalse(inspection.passed)
+        self.assertLessEqual(len(inspection.violations), 32)
+
     def test_required_paths_must_be_relative(self):
         with self.assertRaises(OutputContractError):
             OutputContract(required_files=("../escape.txt",)).validate()
