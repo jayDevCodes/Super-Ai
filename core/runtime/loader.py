@@ -102,8 +102,14 @@ class CapabilityLoader:
 
         try:
             capability = self._staging_factory(manifest, workdir)
-            if capability.spec != capability_spec:
-                raise LoadError("staged capability spec does not match requested spec")
+            if capability.spec.capability_id != capability_spec.capability_id:
+                raise LoadError(
+                    "staged capability spec capability_id does not match requested spec"
+                )
+            if capability.spec.version != capability_spec.version:
+                raise LoadError(
+                    "staged capability spec version does not match requested spec"
+                )
             load_id = uuid4().hex
             handle = LoadedCapability(
                 load_id=load_id,
