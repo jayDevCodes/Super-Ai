@@ -64,6 +64,25 @@ class ExecutionResult:
     sandbox_image_digest: str | None = None
     telemetry: Mapping[str, object] | None = None
 
+    def as_metadata(self) -> dict[str, object]:
+        """Return a bounded, secret-safe projection for control-plane metadata.
+
+        Large or potentially untrusted payloads such as stdout, stderr, and
+        raw telemetry are intentionally excluded from this projection.
+        """
+        return {
+            "status": self.status.value,
+            "exit_code": self.exit_code,
+            "duration_seconds": self.duration_seconds,
+            "timed_out": self.timed_out,
+            "stdout_truncated": self.stdout_truncated,
+            "stderr_truncated": self.stderr_truncated,
+            "verified": self.verified,
+            "cleanup_completed": self.cleanup_completed,
+            "sandbox_attested": self.sandbox_attested,
+            "sandbox_image_digest": self.sandbox_image_digest,
+        }
+
 
 class ProcessHandle(Protocol):
     """Minimal process lifecycle contract used by the controller."""
