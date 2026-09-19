@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+
+from .runtime import RuntimeSpec
 from urllib.parse import urlparse
 
 _SHA1_RE = re.compile(r"^[0-9a-fA-F]{40}$")
@@ -55,6 +57,7 @@ class CapabilityManifest:
     version: str
     artifact: ArtifactSpec
     description: str = ""
+    runtime: RuntimeSpec | None = None
 
     def validate(self) -> None:
         if not self.capability_id or self.capability_id.strip() != self.capability_id:
@@ -66,3 +69,5 @@ class CapabilityManifest:
         if not self.description.strip():
             raise ManifestValidationError("description must be non-empty")
         self.artifact.validate()
+        if self.runtime is not None:
+            self.runtime.validate()
