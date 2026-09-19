@@ -14,6 +14,7 @@ from core.contracts import (
 )
 from registry.manifest import ArtifactSpec, CapabilityManifest
 from core.runtime.cancellation import CancellationToken
+from core.runtime.idempotency import IdempotencyCoordinator
 from core.runtime.execution import ExecutionController, ExecutionResult, ExecutionStatus
 from core.runtime.pipeline import (
     CapabilityExecutionRequest,
