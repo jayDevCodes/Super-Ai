@@ -9,6 +9,8 @@ from core.contracts import (
     CapabilitySpec,
     ResourceScheduler,
     TaskConstraints,
+    WorkspaceContract,
+    WorkspaceContractError,
 )
 
 from core.policy import CapabilityPolicyEngine, PolicyDecisionState
@@ -38,6 +40,7 @@ class CapabilityExecutionRequest:
     image: str
     command: tuple[str, ...]
     output_path: Path
+    workspace_root: Path
     timeout_seconds: float | None = None
     expected_image_digest: str | None = None
     trace_context: TraceContext | None = None
@@ -49,6 +52,8 @@ class CapabilityExecutionRequest:
             raise ValueError("command must be a non-empty argv")
         if self.output_path is None:
             raise ValueError("output_path must be provided")
+        if self.workspace_root is None:
+            raise ValueError("workspace_root must be provided")
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0 when provided")
 
@@ -142,8 +147,13 @@ class CapabilityRuntime:
         if timeout_seconds <= 0:
             raise CapabilityPipelineError("execution timeout must be > 0")
 
-        request.output_path.mkdir(parents=True, exist_ok=True)
-        output_path = request.output_path.resolve()
+        workspace_root = Path(request.workspace_root).expanduser()
+        try:
+            workspace_root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise CapabilityPipelineError("workspace root could not be prepared") from exc
+
+        output_path = Path(request.output_path).expanduser()
 
         self._record(
             "runtime.execution_requested",
@@ -178,12 +188,26 @@ class CapabilityRuntime:
                 run_as_user="65532:65532",
                 root_filesystem_read_only=True,
             )
+
+            try:
+                workspace = WorkspaceContract(
+                    root=workspace_root,
+                    source_path=staged.target_path,
+                    output_path=output_path,
+                )
+                workspace.ensure_output_directory()
+            except WorkspaceContractError as exc:
+                raise CapabilityPipelineError(
+                    f"workspace contract rejected execution: {exc}"
+                ) from exc
+
             plan = self._sandbox.build_plan(
                 image=request.image,
                 command=request.command,
                 source_path=staged.target_path,
                 output_path=output_path,
                 policy=sandbox_policy,
+                workspace=workspace,
                 expected_image_digest=request.expected_image_digest,
             )
 
