@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 from uuid import uuid4
 
 from core.runtime.pipeline import CapabilityExecution, CapabilityExecutionRequest, CapabilityRuntime
@@ -38,7 +38,7 @@ class CapabilityRuntimeStepRunner:
         runtime: CapabilityRuntime,
         workspace_root: Path,
         task_constraints: TaskConstraints | None = None,
-        verifier_factory: callable | None = None,
+        verifier_factory: Callable[[RouteCandidate, object], ExecutionVerifier | None] | None = None,
     ) -> None:
         self._runtime = runtime
         self._workspace_root = Path(workspace_root).resolve()
@@ -90,14 +90,14 @@ class CapabilityRuntimeStepRunner:
             task_constraints=task_constraints,
             verifier=verifier,
         )
-        return _to_output(execution)
+        return _to_output(execution, manifest.version)
 
 
-def _to_output(execution: CapabilityExecution) -> RuntimeStepOutput:
+def _to_output(execution: CapabilityExecution, version: str) -> RuntimeStepOutput:
     result = execution.result
     return RuntimeStepOutput(
         capability_id=execution.staged.capability_id,
-        version=result.sandbox_image_digest or "unknown",
+        version=version,
         status=result.status.value,
         stdout=result.stdout,
         stderr=result.stderr,
