@@ -7,6 +7,7 @@ from typing import Any, Iterable, Mapping
 
 from core.contracts import CapabilitySpec, ResourceContract
 from .manifest import ArtifactSpec, CapabilityManifest
+from .runtime import RuntimeSpec
 
 
 class RegistryError(RuntimeError):
@@ -163,11 +164,35 @@ def _entry_from_json(raw: Any) -> RegistryEntry:
             ),
             subdirectory=str(artifact_raw.get("subdirectory", "")),
         )
+        runtime_raw = manifest_raw.get("runtime")
+        runtime = None
+        if runtime_raw is not None:
+            if not isinstance(runtime_raw, Mapping):
+                raise RegistryError("manifest runtime must be an object")
+            command_raw = runtime_raw.get("command")
+            if not isinstance(command_raw, list) or not all(
+                isinstance(value, str) for value in command_raw
+            ):
+                raise RegistryError("manifest runtime command must be an array of strings")
+            runtime = RuntimeSpec(
+                image=str(runtime_raw["image"]),
+                command=tuple(command_raw),
+                timeout_seconds=float(runtime_raw.get("timeout_seconds", 60.0)),
+                expected_image_digest=(
+                    str(runtime_raw["expected_image_digest"])
+                    if runtime_raw.get("expected_image_digest") is not None
+                    else None
+                ),
+                working_directory=str(
+                    runtime_raw.get("working_directory", "/workspace")
+                ),
+            )
         manifest = CapabilityManifest(
             capability_id=str(manifest_raw["capability_id"]),
             version=str(manifest_raw["version"]),
             artifact=artifact,
             description=str(manifest_raw.get("description", "")),
+            runtime=runtime,
         )
         permissions_raw = spec_raw.get("permissions", [])
         if not isinstance(permissions_raw, list) or not all(
