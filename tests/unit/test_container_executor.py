@@ -72,6 +72,7 @@ class FakeRunner:
         self.terminated = False
         self.killed = False
         self.calls: list[tuple[str, ...]] = []
+        self.environments: list[dict[str, str]] = []
         self.process: FakeProcess | None = None
         self.fail_start = False
         self.attestation_overrides = attestation_overrides or {}
@@ -86,6 +87,7 @@ class FakeRunner:
         timeout_seconds,
     ):
         self.calls.append(command)
+        self.environments.append(dict(environment))
 
         if command[:3] == ("container", "system", "status"):
             return self._json_result({"status": "running"})
@@ -146,6 +148,7 @@ class FakeRunner:
 
     def popen(self, command, *, cwd, environment):
         self.calls.append(command)
+        self.environments.append(dict(environment))
         if self.fail_start:
             raise RuntimeError("start failed")
         self.process = FakeProcess(self)
@@ -524,6 +527,48 @@ class AppleContainerExecutorTests(unittest.TestCase):
                     cwd=output,
                     environment={"PATH": "/usr/bin"},
                 )
+
+
+    def test_direct_container_executor_rejects_sensitive_environment(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            with self.assertRaisesRegex(ValueError, "sensitive environment variable"):
+                executor.launch(
+                    plan,
+                    cwd=output,
+                    environment={"PATH": "/usr/bin", "API_KEY": "secret"},
+                )
+
+        self.assertEqual(runner.calls, [])
+
+    def test_direct_container_executor_uses_allowlisted_environment_for_cli(self):
+        runner = FakeRunner()
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            handle = executor.launch(
+                plan,
+                cwd=output,
+                environment={
+                    "PATH": "/usr/bin",
+                    "MODE": "smoke",
+                },
+            )
+            handle.cleanup()
+
+        self.assertTrue(runner.environments)
+        for environment in runner.environments:
+            self.assertEqual(environment["PATH"], "/usr/bin")
+            self.assertEqual(environment["MODE"], "smoke")
+            self.assertNotIn("HOME", environment)
 
 
 if __name__ == "__main__":
