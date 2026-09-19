@@ -34,7 +34,7 @@ class AuditStoreTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             store = HashChainAuditStore(Path(temp) / "audit.jsonl")
             with self.assertRaises(AuditError):
-                store.append("test", {"message": "bad\\nline"})
+                store.append("test", {"message": "bad" + "\n" + "line"})
 
     def test_event_size_is_bounded(self):
         with TemporaryDirectory() as temp:
