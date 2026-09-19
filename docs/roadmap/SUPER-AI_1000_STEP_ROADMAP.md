@@ -33,7 +33,7 @@ Status: planned; steps turn green only after implementation and CI validation.
 28. Integrate output contracts — completed: OutputContract is carried by RuntimeSpec/registry data, enforced after execution, and bounded filesystem evidence is attached to ExecutionResult.
 29. Integrate cancellation — completed: CancellationToken propagates brain context → runtime request → session/controller with cleanup-preserving cancellation semantics.
 30. Integrate idempotency — completed: keyed runtime deduplication, semantic fingerprinting, bounded replay, conflict detection, and brain workspace stabilization.
-31. Harden execution metadata — define contract, tests, evidence, and resource limits where applicable.
+31. Harden execution metadata — completed: bounded, sanitized, versioned control-plane projection with strict digest/numeric handling.
 32. Harden runtime specs — define contract, tests, evidence, and resource limits where applicable.
 33. Harden ownership — define contract, tests, evidence, and resource limits where applicable.
 34. Harden lifecycle — define contract, tests, evidence, and resource limits where applicable.
