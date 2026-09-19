@@ -19,6 +19,12 @@ from core.audit import HashChainAuditStore
 from core.observability import TraceContext
 
 from .cancellation import CancellationToken
+from .idempotency import (
+    IdempotencyClaimError,
+    IdempotencyConflictError,
+    IdempotencyCoordinator,
+    request_fingerprint,
+)
 from .execution import (
     ExecutionController,
     ExecutionPolicy,
@@ -49,6 +55,7 @@ class CapabilityExecutionRequest:
     trace_context: TraceContext | None = None
     cancellation_token: CancellationToken | None = None
     output_contract: OutputContract | None = None
+    idempotency_key: str | None = None
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -61,6 +68,8 @@ class CapabilityExecutionRequest:
             raise ValueError("workspace_root must be provided")
         if self.output_contract is not None:
             self.output_contract.validate()
+        if self.idempotency_key is not None and not str(self.idempotency_key).strip():
+            raise ValueError("idempotency_key must not be empty")
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0 when provided")
 
@@ -86,6 +95,7 @@ class CapabilityRuntime:
         policy_engine: CapabilityPolicyEngine | None = None,
         audit_store: HashChainAuditStore | None = None,
         sandbox: AppleContainerSandbox | None = None,
+        idempotency_coordinator: IdempotencyCoordinator | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._stager = stager
@@ -94,6 +104,7 @@ class CapabilityRuntime:
         self._policy_engine = policy_engine or CapabilityPolicyEngine()
         self._audit = audit_store
         self._sandbox = sandbox or AppleContainerSandbox()
+        self._idempotency = idempotency_coordinator or IdempotencyCoordinator()
 
     def execute(
         self,
@@ -221,65 +232,114 @@ class CapabilityRuntime:
                     f"workspace contract rejected execution: {exc}"
                 ) from exc
 
-            plan = self._sandbox.build_plan(
+            contract_fingerprint = request_fingerprint(
+                capability_id=capability_spec.capability_id,
+                version=capability_spec.version,
                 image=request.image,
                 command=request.command,
-                source_path=staged.target_path,
-                output_path=output_path,
-                policy=sandbox_policy,
-                workspace=workspace,
                 expected_image_digest=request.expected_image_digest,
-            )
-
-            self._record(
-                "runtime.execution_started",
-                {
-                    "capability_id": capability_spec.capability_id,
-                    "version": capability_spec.version,
+                workspace_root=str(workspace_root.resolve()),
+                output_path=str(output_path.resolve()),
+                timeout_seconds=timeout_seconds,
+                network=network,
+                output_contract={
+                    "required_files": list(output_contract.required_files),
+                    "max_files": output_contract.max_files,
+                    "max_total_bytes": output_contract.max_total_bytes,
+                    "max_single_file_bytes": output_contract.max_single_file_bytes,
+                    "allow_symlinks": output_contract.allow_symlinks,
                 },
-                trace_context=trace.child(),
             )
 
-            with ExecutionSession(
-                self._scheduler,
-                self._controller,
-                capability_id=capability_spec.capability_id,
-                resource=capability_spec.resource,
-                task_constraints=task_constraints,
-            ) as session:
-                result = session.run(
-                    plan,
-                    policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
-                    verifier=verifier,
-                    cancellation_token=request.cancellation_token,
+            try:
+                claim = self._idempotency.claim(
+                    request.idempotency_key,
+                    contract_fingerprint,
+                )
+            except (IdempotencyConflictError, IdempotencyClaimError, ValueError) as exc:
+                raise CapabilityPipelineError(
+                    f"idempotency claim rejected: {exc}"
+                ) from exc
+
+            if claim.replay is not None:
+                self._record(
+                    "runtime.execution_replayed",
+                    {
+                        "capability_id": capability_spec.capability_id,
+                        "version": capability_spec.version,
+                        "idempotency_key_present": request.idempotency_key is not None,
+                    },
+                    trace_context=trace.child(),
+                )
+                return CapabilityExecution(
+                    result=claim.replay.result,
+                    staged=staged,
                 )
 
-            inspection = output_contract.inspect(output_path)
-            result = replace(result, output_inspection=inspection)
-            if (
-                not inspection.passed
-                and result.status is ExecutionStatus.COMPLETED
-            ):
-                result = replace(
-                    result,
-                    status=ExecutionStatus.VERIFICATION_FAILED,
-                    verified=False,
+            try:
+                plan = self._sandbox.build_plan(
+                    image=request.image,
+                    command=request.command,
+                    source_path=staged.target_path,
+                    output_path=output_path,
+                    policy=sandbox_policy,
+                    workspace=workspace,
+                    expected_image_digest=request.expected_image_digest,
                 )
 
-            self._record(
-                "runtime.execution_finished",
-                {
-                    "capability_id": capability_spec.capability_id,
-                    "version": capability_spec.version,
-                    "status": result.status.value,
-                    "verified": result.verified,
-                    "cleanup_completed": result.cleanup_completed,
-                    "sandbox_attested": result.sandbox_attested,
-                    "image_digest": result.sandbox_image_digest,
-                },
-                trace_context=trace.child(),
-            )
-            return CapabilityExecution(result=result, staged=staged)
+                self._record(
+                    "runtime.execution_started",
+                    {
+                        "capability_id": capability_spec.capability_id,
+                        "version": capability_spec.version,
+                    },
+                    trace_context=trace.child(),
+                )
+
+                with ExecutionSession(
+                    self._scheduler,
+                    self._controller,
+                    capability_id=capability_spec.capability_id,
+                    resource=capability_spec.resource,
+                    task_constraints=task_constraints,
+                ) as session:
+                    result = session.run(
+                        plan,
+                        policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
+                        verifier=verifier,
+                        cancellation_token=request.cancellation_token,
+                    )
+
+                inspection = output_contract.inspect(output_path)
+                result = replace(result, output_inspection=inspection)
+                if (
+                    not inspection.passed
+                    and result.status is ExecutionStatus.COMPLETED
+                ):
+                    result = replace(
+                        result,
+                        status=ExecutionStatus.VERIFICATION_FAILED,
+                        verified=False,
+                    )
+
+                self._record(
+                    "runtime.execution_finished",
+                    {
+                        "capability_id": capability_spec.capability_id,
+                        "version": capability_spec.version,
+                        "status": result.status.value,
+                        "verified": result.verified,
+                        "cleanup_completed": result.cleanup_completed,
+                        "sandbox_attested": result.sandbox_attested,
+                        "image_digest": result.sandbox_image_digest,
+                    },
+                    trace_context=trace.child(),
+                )
+                claim.complete(result)
+                return CapabilityExecution(result=result, staged=staged)
+            except Exception:
+                claim.abort()
+                raise
 
     def _record(
         self,
