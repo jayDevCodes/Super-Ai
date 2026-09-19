@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import hashlib
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Callable, Sequence
+from typing import Callable
 
 from core.contracts import (
     CapabilitySpec,
-    ResourceScheduler,
     OutputContract,
+    ResourceScheduler,
     TaskConstraints,
     WorkspaceContract,
     WorkspaceContractError,
@@ -26,6 +28,7 @@ from .execution import (
     ExecutionStatus,
     ExecutionVerifier,
 )
+from .idempotency import IdempotencyCoordinator
 from .sandbox import AppleContainerSandbox, SandboxPolicy
 from registry.resolver import GitHubSourceResolver
 from .session import ExecutionSession
@@ -49,6 +52,7 @@ class CapabilityExecutionRequest:
     trace_context: TraceContext | None = None
     cancellation_token: CancellationToken | None = None
     output_contract: OutputContract | None = None
+    idempotency_key: str | None = None
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -61,6 +65,19 @@ class CapabilityExecutionRequest:
             raise ValueError("workspace_root must be provided")
         if self.output_contract is not None:
             self.output_contract.validate()
+        if self.idempotency_key is not None:
+            normalized_key = self.idempotency_key.strip()
+            if not normalized_key:
+                raise ValueError("idempotency_key must not be empty")
+            if len(normalized_key) > 255:
+                raise ValueError("idempotency_key must be <= 255 characters")
+            if any(
+                ord(char) < 0x20 or ord(char) == 0x7F
+                for char in normalized_key
+            ):
+                raise ValueError(
+                    "idempotency_key must not contain control characters"
+                )
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0 when provided")
 
@@ -71,6 +88,7 @@ class CapabilityExecution:
 
     result: ExecutionResult
     staged: StagedArtifact
+    idempotency_replayed: bool = False
 
 
 class CapabilityRuntime:
@@ -86,6 +104,7 @@ class CapabilityRuntime:
         policy_engine: CapabilityPolicyEngine | None = None,
         audit_store: HashChainAuditStore | None = None,
         sandbox: AppleContainerSandbox | None = None,
+        idempotency: IdempotencyCoordinator | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._stager = stager
@@ -94,6 +113,7 @@ class CapabilityRuntime:
         self._policy_engine = policy_engine or CapabilityPolicyEngine()
         self._audit = audit_store
         self._sandbox = sandbox or AppleContainerSandbox()
+        self._idempotency = idempotency or IdempotencyCoordinator()
 
     def execute(
         self,
@@ -143,8 +163,10 @@ class CapabilityRuntime:
             )
         if (
             decision.state is PolicyDecisionState.CONFIRM
-            and (task_constraints is None
-                 or task_constraints.require_confirmation_for_consequential_actions)
+            and (
+                task_constraints is None
+                or task_constraints.require_confirmation_for_consequential_actions
+            )
         ):
             raise CapabilityPipelineError(
                 "capability execution requires human confirmation"
@@ -154,12 +176,25 @@ class CapabilityRuntime:
         if timeout_seconds <= 0:
             raise CapabilityPipelineError("execution timeout must be > 0")
 
-        output_contract = request.output_contract
         runtime_spec = getattr(manifest, "runtime", None)
-        if output_contract is None and runtime_spec is not None:
-            output_contract = runtime_spec.output_contract
-        if output_contract is None:
-            output_contract = OutputContract()
+        manifest_output_contract = (
+            runtime_spec.output_contract
+            if runtime_spec is not None
+            else None
+        )
+        if (
+            request.output_contract is not None
+            and manifest_output_contract is not None
+            and request.output_contract != manifest_output_contract
+        ):
+            raise CapabilityPipelineError(
+                "request output contract must match the manifest output contract"
+            )
+        output_contract = (
+            request.output_contract
+            or manifest_output_contract
+            or OutputContract()
+        )
         try:
             output_contract.validate()
         except ValueError as exc:
@@ -171,7 +206,9 @@ class CapabilityRuntime:
         try:
             workspace_root.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            raise CapabilityPipelineError("workspace root could not be prepared") from exc
+            raise CapabilityPipelineError(
+                "workspace root could not be prepared"
+            ) from exc
 
         output_path = Path(request.output_path).expanduser()
 
@@ -185,101 +222,138 @@ class CapabilityRuntime:
             trace_context=trace,
         )
 
-        with TemporaryDirectory(
-            prefix=f"super-ai-runtime-{manifest.capability_id.replace('.', '-')}-"
-        ) as temp:
-            workdir = Path(temp)
-            source_plan = self._resolver.resolve(manifest)
-            staged = self._stager.stage(manifest, source_plan, workdir)
+        fingerprint = _execution_fingerprint(
+            manifest=manifest,
+            capability_spec=capability_spec,
+            request=request,
+            output_contract=output_contract,
+            workspace_root=workspace_root,
+            output_path=output_path,
+            network=decision.network,
+            task_constraints=task_constraints,
+        )
+        key_hash = (
+            hashlib.sha256(request.idempotency_key.encode("utf-8")).hexdigest()
+            if request.idempotency_key is not None
+            else None
+        )
 
-            network = decision.network
+        with self._idempotency.claim(
+            request.idempotency_key,
+            fingerprint,
+        ) as idempotency_claim:
+            with TemporaryDirectory(
+                prefix=f"super-ai-runtime-{manifest.capability_id.replace('.', '-')}-"
+            ) as temp:
+                workdir = Path(temp)
+                source_plan = self._resolver.resolve(manifest)
+                staged = self._stager.stage(manifest, source_plan, workdir)
 
-            network_name = None
-            if network == "enabled":
-                network_name = "super-ai-runtime"
+                if idempotency_claim.replay is not None:
+                    self._record(
+                        "runtime.execution_replayed",
+                        {
+                            "capability_id": capability_spec.capability_id,
+                            "version": capability_spec.version,
+                            "idempotency_key_hash": key_hash,
+                        },
+                        trace_context=trace,
+                    )
+                    return CapabilityExecution(
+                        result=idempotency_claim.replay.result,
+                        staged=staged,
+                        idempotency_replayed=True,
+                    )
 
-            sandbox_policy = SandboxPolicy(
-                memory_mb=capability_spec.resource.ram_hard_mb,
-                cpu_threads=capability_spec.resource.cpu_threads,
-                max_processes=64,
-                timeout_seconds=timeout_seconds,
-                network=network,
-                network_name=network_name,
-                run_as_user="65532:65532",
-                root_filesystem_read_only=True,
-            )
+                network = decision.network
+                network_name = "super-ai-runtime" if network == "enabled" else None
 
-            try:
-                workspace = WorkspaceContract(
-                    root=workspace_root,
+                sandbox_policy = SandboxPolicy(
+                    memory_mb=capability_spec.resource.ram_hard_mb,
+                    cpu_threads=capability_spec.resource.cpu_threads,
+                    max_processes=64,
+                    timeout_seconds=timeout_seconds,
+                    network=network,
+                    network_name=network_name,
+                    run_as_user="65532:65532",
+                    root_filesystem_read_only=True,
+                )
+
+                try:
+                    workspace = WorkspaceContract(
+                        root=workspace_root,
+                        source_path=staged.target_path,
+                        output_path=output_path,
+                    )
+                    workspace.ensure_output_directory()
+                except WorkspaceContractError as exc:
+                    raise CapabilityPipelineError(
+                        f"workspace contract rejected execution: {exc}"
+                    ) from exc
+
+                plan = self._sandbox.build_plan(
+                    image=request.image,
+                    command=request.command,
                     source_path=staged.target_path,
                     output_path=output_path,
-                )
-                workspace.ensure_output_directory()
-            except WorkspaceContractError as exc:
-                raise CapabilityPipelineError(
-                    f"workspace contract rejected execution: {exc}"
-                ) from exc
-
-            plan = self._sandbox.build_plan(
-                image=request.image,
-                command=request.command,
-                source_path=staged.target_path,
-                output_path=output_path,
-                policy=sandbox_policy,
-                workspace=workspace,
-                expected_image_digest=request.expected_image_digest,
-            )
-
-            self._record(
-                "runtime.execution_started",
-                {
-                    "capability_id": capability_spec.capability_id,
-                    "version": capability_spec.version,
-                },
-                trace_context=trace.child(),
-            )
-
-            with ExecutionSession(
-                self._scheduler,
-                self._controller,
-                capability_id=capability_spec.capability_id,
-                resource=capability_spec.resource,
-                task_constraints=task_constraints,
-            ) as session:
-                result = session.run(
-                    plan,
-                    policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
-                    verifier=verifier,
-                    cancellation_token=request.cancellation_token,
+                    policy=sandbox_policy,
+                    workspace=workspace,
+                    expected_image_digest=request.expected_image_digest,
                 )
 
-            inspection = output_contract.inspect(output_path)
-            result = replace(result, output_inspection=inspection)
-            if (
-                not inspection.passed
-                and result.status is ExecutionStatus.COMPLETED
-            ):
-                result = replace(
-                    result,
-                    status=ExecutionStatus.VERIFICATION_FAILED,
-                    verified=False,
+                self._record(
+                    "runtime.execution_started",
+                    {
+                        "capability_id": capability_spec.capability_id,
+                        "version": capability_spec.version,
+                    },
+                    trace_context=trace.child(),
                 )
 
-            self._record(
-                "runtime.execution_finished",
-                {
-                    "capability_id": capability_spec.capability_id,
-                    "version": capability_spec.version,
-                    "status": result.status.value,
-                    "verified": result.verified,
-                    "cleanup_completed": result.cleanup_completed,
-                    "sandbox_attested": result.sandbox_attested,
-                    "image_digest": result.sandbox_image_digest,
-                },
-                trace_context=trace.child(),
-            )
-            return CapabilityExecution(result=result, staged=staged)
+                with ExecutionSession(
+                    self._scheduler,
+                    self._controller,
+                    capability_id=capability_spec.capability_id,
+                    resource=capability_spec.resource,
+                    task_constraints=task_constraints,
+                ) as session:
+                    result = session.run(
+                        plan,
+                        policy=ExecutionPolicy(timeout_seconds=timeout_seconds),
+                        verifier=verifier,
+                        cancellation_token=request.cancellation_token,
+                    )
+
+                inspection = output_contract.inspect(output_path)
+                result = replace(result, output_inspection=inspection)
+                if (
+                    not inspection.passed
+                    and result.status is ExecutionStatus.COMPLETED
+                ):
+                    result = replace(
+                        result,
+                        status=ExecutionStatus.VERIFICATION_FAILED,
+                        verified=False,
+                    )
+
+                self._record(
+                    "runtime.execution_finished",
+                    {
+                        "capability_id": capability_spec.capability_id,
+                        "version": capability_spec.version,
+                        "status": result.status.value,
+                        "verified": result.verified,
+                        "cleanup_completed": result.cleanup_completed,
+                        "sandbox_attested": result.sandbox_attested,
+                        "image_digest": result.sandbox_image_digest,
+                    },
+                    trace_context=trace.child(),
+                )
+                idempotency_claim.complete(result)
+                return CapabilityExecution(
+                    result=result,
+                    staged=staged,
+                )
 
     def _record(
         self,
@@ -294,3 +368,65 @@ class CapabilityRuntime:
         if trace_context is not None:
             enriched.update(trace_context.as_attributes())
         self._audit.append(event_name, enriched)
+
+
+def _execution_fingerprint(
+    *,
+    manifest,
+    capability_spec: CapabilitySpec,
+    request: CapabilityExecutionRequest,
+    output_contract: OutputContract,
+    workspace_root: Path,
+    output_path: Path,
+    network: str,
+    task_constraints: TaskConstraints | None,
+) -> str:
+    """Hash only effect-relevant, non-secret execution inputs."""
+    payload = {
+        "capability_id": capability_spec.capability_id,
+        "capability_version": capability_spec.version,
+        "artifact_commit": manifest.artifact.pinned_commit,
+        "artifact_sha256": manifest.artifact.sha256,
+        "artifact_subdirectory": manifest.artifact.subdirectory,
+        "image": request.image,
+        "command": list(request.command),
+        "timeout_seconds": request.timeout_seconds or 60.0,
+        "expected_image_digest": request.expected_image_digest,
+        "workspace_root": str(workspace_root.resolve()),
+        "output_path": str(output_path.resolve()),
+        "output_contract": {
+            "required_files": list(output_contract.required_files),
+            "max_files": output_contract.max_files,
+            "max_total_bytes": output_contract.max_total_bytes,
+            "max_single_file_bytes": output_contract.max_single_file_bytes,
+            "allow_symlinks": output_contract.allow_symlinks,
+        },
+        "network": network,
+        "resource": {
+            "ram_soft_mb": capability_spec.resource.ram_soft_mb,
+            "ram_hard_mb": capability_spec.resource.ram_hard_mb,
+            "disk_mb": capability_spec.resource.disk_mb,
+            "cpu_threads": capability_spec.resource.cpu_threads,
+            "max_concurrency": capability_spec.resource.max_concurrency,
+        },
+        "task_constraints": (
+            None
+            if task_constraints is None
+            else {
+                "max_ram_mb": task_constraints.max_ram_mb,
+                "max_disk_mb": task_constraints.max_disk_mb,
+                "max_parallelism": task_constraints.max_parallelism,
+                "allow_network": task_constraints.allow_network,
+                "require_confirmation_for_consequential_actions": (
+                    task_constraints.require_confirmation_for_consequential_actions
+                ),
+            }
+        ),
+    }
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
