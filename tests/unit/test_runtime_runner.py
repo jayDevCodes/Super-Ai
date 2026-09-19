@@ -106,7 +106,45 @@ class RuntimeRunnerTests(unittest.TestCase):
             "sha256:" + "a" * 64,
         )
 
-    def test_missing_runtime_spec_fails_closed(self):
+    def test_idempotency_key_is_forwarded_and_stabilizes_workspace(self):
+        runtime = FakeRuntime()
+        with TemporaryDirectory() as temp:
+            runner = CapabilityRuntimeStepRunner(
+                runtime=runtime,
+                workspace_root=Path(temp),
+            )
+            runner.run(
+                make_route(
+                    RuntimeSpec(
+                        image="alpine:3.22",
+                        command=("/bin/echo", "ok"),
+                        expected_image_digest="sha256:" + "a" * 64,
+                    )
+                ),
+                step=object(),
+                context={"__idempotency_key": "task-1-step-1"},
+            )
+            runner.run(
+                make_route(
+                    RuntimeSpec(
+                        image="alpine:3.22",
+                        command=("/bin/echo", "ok"),
+                        expected_image_digest="sha256:" + "a" * 64,
+                    )
+                ),
+                step=object(),
+                context={"__idempotency_key": "task-1-step-1"},
+            )
+
+        self.assertEqual(
+            runtime.calls[0]["request"].idempotency_key,
+            "task-1-step-1",
+        )
+        self.assertEqual(
+            runtime.calls[0]["request"].output_path,
+            runtime.calls[1]["request"].output_path,
+        )
+
         runtime = FakeRuntime()
         with TemporaryDirectory() as temp:
             runner = CapabilityRuntimeStepRunner(
