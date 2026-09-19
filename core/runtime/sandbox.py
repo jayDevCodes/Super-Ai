@@ -125,6 +125,7 @@ class AppleContainerSandbox:
         source_path: Path,
         output_path: Path,
         policy: SandboxPolicy,
+        expected_image_digest: str | None = None,
     ) -> SandboxPlan:
         policy.validate()
         if not _IMAGE_RE.fullmatch(image):
