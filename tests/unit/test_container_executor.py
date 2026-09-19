@@ -208,6 +208,10 @@ class AppleContainerExecutorTests(unittest.TestCase):
             cpu_threads=1,
             timeout_seconds=5,
         )
+        source = Path(temp) / "source"
+        output = Path(temp) / "output"
+        source.mkdir(parents=True, exist_ok=True)
+        output.mkdir(parents=True, exist_ok=True)
         values = dict(
             backend="apple-container",
             image="alpine:latest",
@@ -224,13 +228,17 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 "-c",
                 "echo ok",
             ),
-            source_path=Path(temp),
-            output_path=Path(temp) / "output",
+            source_path=source,
+            output_path=output,
             policy=policy,
             execution_ready=True,
             safety_note="network none",
         )
         values.update(overrides)
+        if values["source_path"] == Path(temp):
+            values["source_path"] = source
+        if values["output_path"] == Path(temp):
+            values["output_path"] = output
         return SandboxPlan(**values)
 
     def test_launch_attests_before_start_and_records_image_digest(self):
