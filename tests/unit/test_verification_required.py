@@ -32,7 +32,15 @@ class FakeStager:
 
 
 class FakeController:
-    def run(self, plan, *, policy=None, verifier=None, cleanup=None):
+    def run(
+        self,
+        plan,
+        *,
+        policy=None,
+        verifier=None,
+        cleanup=None,
+        cancellation_token=None,
+    ):
         return ExecutionResult(
             status=ExecutionStatus.COMPLETED,
             exit_code=0,
