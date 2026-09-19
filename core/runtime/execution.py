@@ -229,8 +229,8 @@ class ExecutionController:
                 environment=self._environment,
             )
 
-            stdout_stream = process.stdout()
-            stderr_stream = process.stderr()
+            stdout_stream = process.stdout
+            stderr_stream = process.stderr
             if stdout_stream is None or stderr_stream is None:
                 raise ExecutionError("sandbox process did not expose stdout/stderr pipes")
 

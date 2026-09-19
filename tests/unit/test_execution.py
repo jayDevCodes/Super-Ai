@@ -1,5 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import sys
 import threading
 import time
 import unittest
@@ -58,9 +59,11 @@ class FakeProcess:
             raise __import__("subprocess").TimeoutExpired("fake", timeout)
         return self._returncode
 
+    @property
     def stdout(self):
         return self._stdout
 
+    @property
     def stderr(self):
         return self._stderr
 
@@ -288,6 +291,25 @@ class ExecutionControllerTests(unittest.TestCase):
                     plan,
                     policy=ExecutionPolicy(timeout_seconds=2),
                 )
+
+    def test_real_subprocess_launcher_uses_stream_attributes(self):
+        controller = ExecutionController()
+
+        with TemporaryDirectory() as temp:
+            plan = self._plan(
+                source_path=Path(temp),
+                output_path=Path(temp),
+                command=(
+                    sys.executable,
+                    "-c",
+                    "print('real-subprocess-ok')",
+                ),
+            )
+            result = controller.run(plan)
+
+        self.assertEqual(result.status, ExecutionStatus.COMPLETED)
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("real-subprocess-ok", result.stdout)
 
     def test_policy_validation_rejects_zero_output_limit(self):
         with self.assertRaises(ValueError):
