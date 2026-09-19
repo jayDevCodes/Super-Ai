@@ -26,8 +26,7 @@ class AuditStoreTests(unittest.TestCase):
             store.append("test", {"value": 1})
             raw = json.loads(path.read_text())
             raw["attributes"]["value"] = 2
-            path.write_text(json.dumps(raw) + "
-", encoding="utf-8")
+            path.write_text(json.dumps(raw) + "\n", encoding="utf-8")
             with self.assertRaises(AuditError):
                 store.verify()
 
