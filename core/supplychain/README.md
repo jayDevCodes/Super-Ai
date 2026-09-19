@@ -1,9 +1,8 @@
 # Supply-chain controls
 
 The supply-chain package is an additive admission layer around the existing registry.
-It models immutable artifact identity, signature/provenance/SBOM/dependency-lock evidence,
-revocation, deterministic trust scoring, registry reconciliation, and pluggable
-verification.
+It models immutable artifact identity, signatures, provenance, SBOM summaries, dependency
+locks, revocation, deterministic trust scoring, mirror selection, registry reconciliation,
+canonical fingerprints, and pluggable cryptographic verification adapters.
 
-No module in this package downloads or executes third-party code. Runtime adapters
-remain responsible for translating an admitted record into staging/execution actions.
+The core package never downloads or executes third-party code.
