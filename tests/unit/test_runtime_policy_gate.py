@@ -129,6 +129,7 @@ class RuntimePolicyGateTests(unittest.TestCase):
                     output_path=Path(temp) / "out",
                 ),
                 task_constraints=TaskConstraints(allow_network=True),
+                verifier=lambda _: True,
             )
         self.assertEqual(controller.calls[0].policy.network, "enabled")
 
