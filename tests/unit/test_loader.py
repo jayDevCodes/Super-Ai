@@ -6,6 +6,7 @@ from core.contracts import (
     ResourceScheduler,
     ResourceSnapshot,
 )
+from core.contracts.scheduler import ResourceLimitError
 from core.runtime import CapabilityLoader, LoadError, LoaderState
 from registry.manifest import ArtifactSpec, CapabilityManifest
 
@@ -46,7 +47,7 @@ class CapabilityLoaderTests(unittest.TestCase):
             description="Fill form fields.",
             artifact=ArtifactSpec(
                 repository_url="https://github.com/example/form-fill",
-                pinned_ref="v1.0.0",
+                pinned_commit="a" * 40,
             ),
         )
         self.scheduler = ResourceScheduler(
@@ -80,6 +81,7 @@ class CapabilityLoaderTests(unittest.TestCase):
         self.assertEqual(self.scheduler.reserved_ram_mb, 0)
         self.assertFalse(handle.workdir.exists())
         self.assertIsInstance(created[0][1], type(handle.workdir))
+        self.assertTrue(created)
 
     def test_staging_failure_releases_resources_and_temp_storage(self):
         def factory(manifest, workdir):
@@ -116,11 +118,31 @@ class CapabilityLoaderTests(unittest.TestCase):
         )
 
         first = loader.load(self.manifest, self.spec)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ResourceLimitError):
             loader.load(self.manifest, self.spec)
 
         loader.unload(first)
         self.assertEqual(self.scheduler.reserved_ram_mb, 0)
+
+    def test_cleanup_failure_still_releases_resources(self):
+        class BrokenCleanup(FakeCapability):
+            def cleanup(self):
+                self.cleaned = True
+                raise RuntimeError("cleanup boom")
+
+        loader = CapabilityLoader(
+            self.scheduler,
+            lambda manifest, workdir: BrokenCleanup(self.spec),
+        )
+        handle = loader.load(self.manifest, self.spec)
+
+        with self.assertRaisesRegex(LoadError, "cleanup failed"):
+            loader.unload(handle)
+
+        self.assertEqual(handle.state, LoaderState.UNLOADED)
+        self.assertEqual(loader.active_count, 0)
+        self.assertEqual(self.scheduler.reserved_ram_mb, 0)
+        self.assertFalse(handle.workdir.exists())
 
 
 if __name__ == "__main__":
