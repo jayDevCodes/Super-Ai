@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from core.contracts import CapabilitySpec, ResourceContract, ResourceScheduler, TaskConstraints
+from core.contracts import CapabilitySpec, ResourceContract, ResourceScheduler, ResourceSnapshot, TaskConstraints
 from core.runtime.execution import ExecutionController, ExecutionResult, ExecutionStatus
 from core.runtime.pipeline import (
     CapabilityExecutionRequest,
@@ -52,10 +52,6 @@ class FakeController:
         )
 
 
-class FakeSessionScheduler:
-    pass
-
-
 class PipelineTests(unittest.TestCase):
     def test_end_to_end_pipeline_wires_stager_scheduler_and_controller(self):
         from core.runtime.stager import StagedArtifact
@@ -78,10 +74,12 @@ class PipelineTests(unittest.TestCase):
             stager = FakeStager(staged)
             controller = FakeController()
             scheduler = ResourceScheduler(
-                total_ram_mb=4096,
-                total_disk_mb=8192,
-                total_cpu_threads=4,
-                max_parallel_workers=2,
+                ResourceSnapshot(
+                    total_ram_mb=4096,
+                    available_ram_mb=4096,
+                    free_disk_mb=8192,
+                    cpu_threads=4,
+                )
             )
             runtime = CapabilityRuntime(
                 scheduler=scheduler,
@@ -145,7 +143,14 @@ class PipelineTests(unittest.TestCase):
             stager = FakeStager(staged)
             controller = FakeController()
             runtime = CapabilityRuntime(
-                scheduler=ResourceScheduler(4096, 8192, 4, 2),
+                scheduler=ResourceScheduler(
+                    ResourceSnapshot(
+                        total_ram_mb=4096,
+                        available_ram_mb=4096,
+                        free_disk_mb=8192,
+                        cpu_threads=4,
+                    )
+                ),
                 stager=stager,
                 controller=controller,
             )
