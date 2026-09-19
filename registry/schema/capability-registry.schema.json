@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://super-ai.local/schema/capability-registry.json",
+  "type": "object",
+  "required": ["capabilities"],
+  "properties": {
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["manifest", "spec"],
+        "properties": {
+          "manifest": {
+            "type": "object",
+            "required": ["capability_id", "version", "artifact"]
+          },
+          "spec": {
+            "type": "object",
+            "required": ["capability_id", "version", "description", "resource"]
+          }
+        }
+      }
+    }
+  }
+}
