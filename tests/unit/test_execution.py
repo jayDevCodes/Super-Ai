@@ -216,7 +216,8 @@ class ExecutionControllerTests(unittest.TestCase):
 
     def test_not_execution_ready_is_refused(self):
         process = FakeProcess()
-        controller = ExecutionController(FakeLauncher(process))
+        launcher = FakeLauncher(process)
+        controller = ExecutionController(launcher)
 
         with TemporaryDirectory() as temp:
             plan = self._plan(
