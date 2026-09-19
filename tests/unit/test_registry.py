@@ -62,16 +62,6 @@ class CapabilityRegistryTests(unittest.TestCase):
                         "repository_url": entry.manifest.artifact.repository_url,
                         "pinned_commit": entry.manifest.artifact.pinned_commit,
                     },
-                },
-                "spec": {
-                    "capability_id": entry.spec.capability_id,
-                    "version": entry.spec.version,
-                    "description": entry.spec.description,
-                    "permissions": sorted(entry.spec.permissions),
-                    "resource": {
-                        "ram_soft_mb": entry.spec.resource.ram_soft_mb,
-                        "ram_hard_mb": entry.spec.resource.ram_hard_mb,
-                    },
                     "runtime": {
                         "image": "alpine:3.22",
                         "command": ["/bin/sh", "-c", "echo ok"],
@@ -81,6 +71,16 @@ class CapabilityRegistryTests(unittest.TestCase):
                             "max_total_bytes": 1024,
                             "max_single_file_bytes": 512,
                         },
+                    },
+                },
+                "spec": {
+                    "capability_id": entry.spec.capability_id,
+                    "version": entry.spec.version,
+                    "description": entry.spec.description,
+                    "permissions": sorted(entry.spec.permissions),
+                    "resource": {
+                        "ram_soft_mb": entry.spec.resource.ram_soft_mb,
+                        "ram_hard_mb": entry.spec.resource.ram_hard_mb,
                     },
                 },
             }]
