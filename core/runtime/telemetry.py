@@ -5,8 +5,6 @@ import json
 import time
 from typing import Any, Mapping, Protocol
 
-from typing import Protocol
-
 
 class _CommandResult(Protocol):
     returncode: int
