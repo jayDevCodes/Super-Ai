@@ -178,7 +178,7 @@ class PipelineTests(unittest.TestCase):
             )
 
             result = runtime.execute(
-                manifest=Manifest(),
+                manifest=manifest,
                 capability_spec=spec,
                 request=CapabilityExecutionRequest(
                     image="alpine:3.22",
