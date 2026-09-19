@@ -35,8 +35,16 @@ class FakeController:
     def __init__(self):
         self.calls = []
 
-    def run(self, plan, *, policy=None, verifier=None, cleanup=None):
-        self.calls.append((plan, policy, verifier))
+    def run(
+        self,
+        plan,
+        *,
+        policy=None,
+        verifier=None,
+        cleanup=None,
+        cancellation_token=None,
+    ):
+        self.calls.append((plan, policy, verifier, cancellation_token))
         return ExecutionResult(
             status=ExecutionStatus.COMPLETED,
             exit_code=0,
@@ -252,7 +260,7 @@ class PipelineTests(unittest.TestCase):
                 verifier=lambda _: True,
             )
 
-        self.assertEqual(controller.calls[0][2], None)
+        self.assertIs(controller.calls[0][3], token)
 
     def test_request_validation_rejects_empty_command(self):
         with self.assertRaises(ValueError):
