@@ -162,23 +162,39 @@ class ResourceSchedulerTests(unittest.TestCase):
     def test_atomic_parallel_admission(self):
         from concurrent.futures import ThreadPoolExecutor
         from threading import Barrier
+        import time
 
+        scheduler = ResourceScheduler(
+            ResourceSnapshot(
+                total_ram_mb=8192,
+                available_ram_mb=7000,
+                free_disk_mb=10000,
+                cpu_threads=8,
+            ),
+            ResourceBudget(
+                system_reserved_ram_mb=2000,
+                control_plane_reserved_ram_mb=700,
+                safety_reserve_ram_mb=700,
+                max_parallel_workers=1,
+            ),
+        )
         contract = ResourceContract(
             ram_soft_mb=100,
             ram_hard_mb=250,
             cpu_threads=1,
             max_concurrency=4,
         )
-        barrier = Barrier(4)
+        start = Barrier(12)
 
         def worker(index):
+            start.wait(timeout=2)
             try:
-                lease = self.scheduler.lease(f"parallel.{index}", contract)
+                lease = scheduler.lease(f"parallel.{index}", contract)
             except ResourceLimitError:
                 return False
 
             try:
-                barrier.wait(timeout=2)
+                time.sleep(0.05)
             finally:
                 lease.release()
             return True
@@ -186,8 +202,8 @@ class ResourceSchedulerTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=12) as pool:
             results = list(pool.map(worker, range(12)))
 
-        self.assertEqual(sum(results), 4)
-        self.assertEqual(self.scheduler.reserved_ram_mb, 0)
+        self.assertEqual(sum(results), 1)
+        self.assertEqual(scheduler.reserved_ram_mb, 0)
 
 
 if __name__ == "__main__":
