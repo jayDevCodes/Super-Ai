@@ -95,6 +95,12 @@ class CapabilityRuntime:
         manifest.validate()
         capability_spec.validate()
         request.validate()
+
+        if capability_spec.verification_required and verifier is None:
+            raise CapabilityPipelineError(
+                "capability requires an explicit verifier before execution"
+            )
+
         trace = request.trace_context or TraceContext.new_root()
 
         if manifest.capability_id != capability_spec.capability_id:
