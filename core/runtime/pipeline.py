@@ -18,6 +18,7 @@ from .execution import (
     ExecutionVerifier,
 )
 from .sandbox import AppleContainerSandbox, SandboxPolicy
+from registry.resolver import GitHubSourceResolver
 from .session import ExecutionSession
 from .stager import CapabilityStager, StagedArtifact
 
@@ -64,11 +65,13 @@ class CapabilityRuntime:
         scheduler: ResourceScheduler,
         stager: CapabilityStager,
         controller: ExecutionController,
+        resolver: GitHubSourceResolver | None = None,
         sandbox: AppleContainerSandbox | None = None,
     ) -> None:
         self._scheduler = scheduler
         self._stager = stager
         self._controller = controller
+        self._resolver = resolver or GitHubSourceResolver()
         self._sandbox = sandbox or AppleContainerSandbox()
 
     def execute(
@@ -96,8 +99,6 @@ class CapabilityRuntime:
         timeout_seconds = request.timeout_seconds or 60.0
         if timeout_seconds <= 0:
             raise CapabilityPipelineError("execution timeout must be > 0")
-        if timeout_seconds > capability_spec.resource.ram_hard_mb * 0 + timeout_seconds:
-            raise CapabilityPipelineError("invalid execution timeout")
 
         request.output_path.mkdir(parents=True, exist_ok=True)
         output_path = request.output_path.resolve()
@@ -106,7 +107,7 @@ class CapabilityRuntime:
             prefix=f"super-ai-runtime-{manifest.capability_id.replace('.', '-')}-"
         ) as temp:
             workdir = Path(temp)
-            source_plan = self._stager._resolver.resolve(manifest)
+            source_plan = self._resolver.resolve(manifest)
             staged = self._stager.stage(manifest, source_plan, workdir)
 
             network = "enabled" if (
