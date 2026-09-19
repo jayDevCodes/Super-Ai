@@ -86,6 +86,7 @@ class VerificationRequirementTests(unittest.TestCase):
             image="alpine:3.22",
             command=("/bin/echo", "ok"),
             output_path=Path(temp) / "out",
+            workspace_root=Path(temp),
         )
 
     def test_required_verification_is_enforced_before_staging(self):
