@@ -111,6 +111,21 @@ class CapabilityLoaderTests(unittest.TestCase):
         with self.assertRaisesRegex(LoadError, "capability_id"):
             loader.load(self.manifest, self.spec)
 
+    def test_version_mismatch_is_rejected(self):
+        versioned_spec = CapabilitySpec(
+            capability_id=self.spec.capability_id,
+            version="2.0.0",
+            description="Different version.",
+            resource=self.spec.resource,
+        )
+        loader = CapabilityLoader(
+            self.scheduler,
+            lambda manifest, workdir: FakeCapability(versioned_spec),
+        )
+
+        with self.assertRaisesRegex(LoadError, "version"):
+            loader.load(self.manifest, self.spec)
+
     def test_concurrency_limit_blocks_second_load(self):
         loader = CapabilityLoader(
             self.scheduler,
