@@ -82,7 +82,10 @@ class SandboxPlan:
             object.__setattr__(self, "workspace", workspace)
 
         try:
-            workspace.validate(require_output=True)
+            workspace.validate(
+                require_output=True,
+                require_non_overlap=(self.backend == "apple-container"),
+            )
         except WorkspaceContractError as exc:
             raise SandboxError(str(exc)) from exc
 
