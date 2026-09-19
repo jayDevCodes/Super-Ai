@@ -208,7 +208,7 @@ class AppleContainerSandbox:
         if labels:
             normalized_labels: list[str] = []
             for key, value in sorted(labels.items()):
-                if not key or not value or any(ch in key + value for ch in "\\r\\n"):
+                if not key or not value or any(ch in key + value for ch in "\r\n"):
                     raise SandboxError(
                         "container labels must be non-empty and single-line"
                     )
