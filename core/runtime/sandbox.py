@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Mapping, Protocol
 import re
 
+from core.contracts import WorkspaceContract, WorkspaceContractError
+
 
 class SandboxError(RuntimeError):
     """Raised when a sandbox policy cannot be represented safely."""
@@ -65,8 +67,42 @@ class SandboxPlan:
     output_path: Path
     policy: SandboxPolicy
     execution_ready: bool
+    workspace: WorkspaceContract | None = None
     expected_image_digest: str | None = None
     safety_note: str = ""
+
+    def __post_init__(self) -> None:
+        workspace = self.workspace
+        if workspace is None:
+            workspace = WorkspaceContract(
+                root=Path(self.output_path).expanduser().resolve().parent,
+                source_path=Path(self.source_path),
+                output_path=Path(self.output_path),
+            )
+            object.__setattr__(self, "workspace", workspace)
+
+        try:
+            workspace.validate(
+                require_output=True,
+                require_non_overlap=(self.backend == "apple-container"),
+            )
+        except WorkspaceContractError as exc:
+            raise SandboxError(str(exc)) from exc
+
+        if (
+            Path(self.source_path).expanduser().resolve()
+            != Path(workspace.source_path).expanduser().resolve()
+        ):
+            raise SandboxError(
+                "sandbox source_path must match the workspace contract"
+            )
+        if (
+            Path(self.output_path).expanduser().resolve()
+            != Path(workspace.output_path).expanduser().resolve()
+        ):
+            raise SandboxError(
+                "sandbox output_path must match the workspace contract"
+            )
 
 
 class SandboxBackend(Protocol):
@@ -80,6 +116,7 @@ class SandboxBackend(Protocol):
         source_path: Path,
         output_path: Path,
         policy: SandboxPolicy,
+        workspace: WorkspaceContract | None = None,
         expected_image_digest: str | None = None,
     ) -> SandboxPlan:
         ...
@@ -125,6 +162,7 @@ class AppleContainerSandbox:
         source_path: Path,
         output_path: Path,
         policy: SandboxPolicy,
+        workspace: WorkspaceContract | None = None,
         expected_image_digest: str | None = None,
     ) -> SandboxPlan:
         policy.validate()
@@ -141,6 +179,25 @@ class AppleContainerSandbox:
 
         if source == output:
             raise SandboxError("source_path and output_path must be different")
+
+        active_workspace = workspace or WorkspaceContract(
+            root=output.parent,
+            source_path=source,
+            output_path=output,
+        )
+        try:
+            active_workspace.validate(require_output=True)
+        except WorkspaceContractError as exc:
+            raise SandboxError(str(exc)) from exc
+
+        if (
+            source.resolve() != Path(active_workspace.source_path).expanduser().resolve()
+            or output.resolve()
+            != Path(active_workspace.output_path).expanduser().resolve()
+        ):
+            raise SandboxError(
+                "workspace contract paths must match sandbox source/output paths"
+            )
 
         args = self._build_run_args(
             image=image,
@@ -169,6 +226,7 @@ class AppleContainerSandbox:
             output_path=output,
             policy=policy,
             execution_ready=execution_ready,
+            workspace=active_workspace,
             expected_image_digest=expected_image_digest,
             safety_note=note,
         )
@@ -189,6 +247,14 @@ class AppleContainerSandbox:
             raise SandboxError("container_id contains unsupported characters")
 
         plan.policy.validate()
+        workspace = plan.workspace
+        if workspace is None:
+            raise SandboxError("sandbox plan is missing a workspace contract")
+        try:
+            workspace.validate(require_output=True)
+        except WorkspaceContractError as exc:
+            raise SandboxError(str(exc)) from exc
+
         if plan.source_path == plan.output_path:
             raise SandboxError("source_path and output_path must be different")
 

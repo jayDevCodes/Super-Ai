@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from core.contracts import WorkspaceContract
 from core.runtime.sandbox import AppleContainerSandbox, SandboxError, SandboxPolicy
 
 
@@ -40,6 +41,49 @@ class AppleContainerSandboxTests(unittest.TestCase):
                 "none",
             )
             self.assertIn("--no-dns", plan.command)
+
+
+    def test_plan_carries_workspace_contract(self):
+        temp, source, output = self._dirs()
+        with temp:
+            contract = WorkspaceContract(
+                root=Path(temp.name),
+                source_path=source,
+                output_path=output,
+            )
+            plan = AppleContainerSandbox().build_plan(
+                image="alpine:3.22",
+                command=("true",),
+                source_path=source,
+                output_path=output,
+                policy=SandboxPolicy(memory_mb=512, cpu_threads=1),
+                workspace=contract,
+            )
+            self.assertIs(plan.workspace, contract)
+            plan.workspace.validate(require_output=True)
+
+    def test_workspace_contract_paths_must_match_plan_paths(self):
+        temp, source, output = self._dirs()
+        with temp:
+            other = Path(temp.name) / "other"
+            other.mkdir()
+            contract = WorkspaceContract(
+                root=Path(temp.name),
+                source_path=other,
+                output_path=output,
+            )
+            with self.assertRaisesRegex(
+                SandboxError,
+                "workspace contract paths",
+            ):
+                AppleContainerSandbox().build_plan(
+                    image="alpine:3.22",
+                    command=("true",),
+                    source_path=source,
+                    output_path=output,
+                    policy=SandboxPolicy(memory_mb=512, cpu_threads=1),
+                    workspace=contract,
+                )
 
     def test_isolated_network_requires_named_network(self):
         temp, source, output = self._dirs()

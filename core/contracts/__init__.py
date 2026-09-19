@@ -9,6 +9,7 @@ from .scheduler import (
     ResourceSnapshot,
 )
 from .task import Task, TaskStep
+from .workspace import WorkspaceContract, WorkspaceContractError
 
 __all__ = [
     "Allocation",
@@ -23,4 +24,6 @@ __all__ = [
     "Task",
     "TaskConstraints",
     "TaskStep",
+    "WorkspaceContract",
+    "WorkspaceContractError",
 ]

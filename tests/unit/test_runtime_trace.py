@@ -83,6 +83,7 @@ class RuntimeTracePropagationTests(unittest.TestCase):
                     image="alpine:3.22",
                     command=("/bin/echo", "ok"),
                     output_path=Path(temp) / "out",
+                    workspace_root=Path(temp),
                     trace_context=trace,
                 ),
                 verifier=lambda _: True,

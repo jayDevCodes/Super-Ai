@@ -84,6 +84,7 @@ class CapabilityRuntimeStepRunner:
                 image=runtime_spec.image,
                 command=runtime_spec.command,
                 output_path=output_path,
+                workspace_root=self._workspace_root,
                 timeout_seconds=runtime_spec.timeout_seconds,
                 expected_image_digest=runtime_spec.expected_image_digest,
             ),

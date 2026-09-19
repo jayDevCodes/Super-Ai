@@ -117,6 +117,7 @@ class PipelineTests(unittest.TestCase):
                 image="alpine:3.22",
                 command=("sh", "-c", "echo ok"),
                 output_path=output,
+                workspace_root=Path(temp),
                 expected_image_digest="sha256:" + "a" * 64,
             )
             execution = runtime.execute(
@@ -185,6 +186,7 @@ class PipelineTests(unittest.TestCase):
                     image="alpine:3.22",
                     command=("true",),
                     output_path=Path(temp) / "out",
+                    workspace_root=Path(temp),
                 ),
                 task_constraints=TaskConstraints(allow_network=True),
                 verifier=lambda _: True,
@@ -197,6 +199,16 @@ class PipelineTests(unittest.TestCase):
                 image="alpine:3.22",
                 command=(),
                 output_path=Path("/tmp/out"),
+                workspace_root=Path("/tmp"),
+            ).validate()
+
+    def test_request_validation_requires_workspace_root(self):
+        with self.assertRaises(ValueError):
+            CapabilityExecutionRequest(
+                image="alpine:3.22",
+                command=("true",),
+                output_path=Path("/tmp/out"),
+                workspace_root=None,
             ).validate()
 
 
