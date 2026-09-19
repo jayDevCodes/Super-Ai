@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import RLock
 
 from .resources import ResourceContract, TaskConstraints
 
@@ -69,12 +70,39 @@ class Allocation:
     reserved_cpu_threads: int
 
 
-class ResourceScheduler:
-    """Deterministic peak-resource admission controller.
+class ResourceLease:
+    """Context-managed, idempotently releasable reservation lease."""
 
-    The scheduler is intentionally separate from OS telemetry and model loading.
-    It answers one question reliably: "Can this worker be admitted right now?"
-    Runtime telemetry can later refresh ResourceSnapshot without changing this API.
+    def __init__(self, scheduler: "ResourceScheduler", allocation: Allocation) -> None:
+        self._scheduler = scheduler
+        self.allocation = allocation
+        self._released = False
+
+    @property
+    def released(self) -> bool:
+        return self._released
+
+    def release(self) -> None:
+        if self._released:
+            return
+        self._scheduler.release(self.allocation)
+        self._released = True
+
+    def __enter__(self) -> "ResourceLease":
+        if self._released:
+            raise RuntimeError("resource lease has already been released")
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.release()
+
+
+class ResourceScheduler:
+    """Thread-safe deterministic peak-resource admission controller.
+
+    Admission and reservation are one atomic operation. ResourceLease provides
+    structured release so execution lifecycles cannot accidentally leak a
+    reservation when an exception crosses a scope.
     """
 
     def __init__(
@@ -88,24 +116,29 @@ class ResourceScheduler:
         self._budget.validate()
         self._allocations: dict[int, Allocation] = {}
         self._next_id = 1
+        self._lock = RLock()
 
     @property
     def execution_ram_capacity_mb(self) -> int:
-        return max(0, self._snapshot.total_ram_mb - self._budget.reserved_ram_mb)
+        with self._lock:
+            return max(0, self._snapshot.total_ram_mb - self._budget.reserved_ram_mb)
 
     @property
     def reserved_ram_mb(self) -> int:
-        return sum(item.reserved_ram_mb for item in self._allocations.values())
+        with self._lock:
+            return sum(item.reserved_ram_mb for item in self._allocations.values())
 
     @property
     def reserved_disk_mb(self) -> int:
-        return sum(item.reserved_disk_mb for item in self._allocations.values())
+        with self._lock:
+            return sum(item.reserved_disk_mb for item in self._allocations.values())
 
     @property
     def reserved_cpu_threads(self) -> int:
-        return sum(item.reserved_cpu_threads for item in self._allocations.values())
+        with self._lock:
+            return sum(item.reserved_cpu_threads for item in self._allocations.values())
 
-    def _effective_available_ram_mb(self) -> int:
+    def _effective_available_ram_mb_locked(self) -> int:
         """Conservative RAM headroom after safety reserve and active reservations."""
 
         host_budget = max(
@@ -118,13 +151,11 @@ class ResourceScheduler:
         )
         return min(host_budget, internal_budget)
 
-    def can_admit(
+    def _can_admit_locked(
         self,
         contract: ResourceContract,
-        task_constraints: TaskConstraints | None = None,
+        task_constraints: TaskConstraints | None,
     ) -> bool:
-        contract.validate()
-
         if len(self._allocations) >= self._budget.max_parallel_workers:
             return False
 
@@ -138,12 +169,21 @@ class ResourceScheduler:
                 return False
 
         return (
-            contract.ram_hard_mb <= self._effective_available_ram_mb()
+            contract.ram_hard_mb <= self._effective_available_ram_mb_locked()
             and contract.disk_mb
             <= self._snapshot.free_disk_mb - self.reserved_disk_mb
             and contract.cpu_threads
             <= self._snapshot.cpu_threads - self.reserved_cpu_threads
         )
+
+    def can_admit(
+        self,
+        contract: ResourceContract,
+        task_constraints: TaskConstraints | None = None,
+    ) -> bool:
+        contract.validate()
+        with self._lock:
+            return self._can_admit_locked(contract, task_constraints)
 
     def reserve(
         self,
@@ -154,36 +194,53 @@ class ResourceScheduler:
         if not capability_id or capability_id.strip() != capability_id:
             raise ValueError("capability_id must be a non-empty trimmed string")
 
-        if not self.can_admit(contract, task_constraints):
-            raise ResourceLimitError(
-                f"resource admission denied for {capability_id!r}: "
-                f"peak_ram={contract.ram_hard_mb}MB, "
-                f"available_execution_ram={self._effective_available_ram_mb()}MB"
-            )
+        contract.validate()
 
-        same_capability = sum(
-            allocation.capability_id == capability_id
-            for allocation in self._allocations.values()
-        )
-        if same_capability >= contract.max_concurrency:
-            raise ResourceLimitError(
-                f"concurrency limit reached for {capability_id!r}: "
-                f"{contract.max_concurrency}"
-            )
+        with self._lock:
+            if not self._can_admit_locked(contract, task_constraints):
+                raise ResourceLimitError(
+                    f"resource admission denied for {capability_id!r}: "
+                    f"peak_ram={contract.ram_hard_mb}MB, "
+                    f"available_execution_ram={self._effective_available_ram_mb_locked()}MB"
+                )
 
-        allocation = Allocation(
-            allocation_id=self._next_id,
-            capability_id=capability_id,
-            reserved_ram_mb=contract.ram_hard_mb,
-            reserved_disk_mb=contract.disk_mb,
-            reserved_cpu_threads=contract.cpu_threads,
+            same_capability = sum(
+                allocation.capability_id == capability_id
+                for allocation in self._allocations.values()
+            )
+            if same_capability >= contract.max_concurrency:
+                raise ResourceLimitError(
+                    f"concurrency limit reached for {capability_id!r}: "
+                    f"{contract.max_concurrency}"
+                )
+
+            allocation = Allocation(
+                allocation_id=self._next_id,
+                capability_id=capability_id,
+                reserved_ram_mb=contract.ram_hard_mb,
+                reserved_disk_mb=contract.disk_mb,
+                reserved_cpu_threads=contract.cpu_threads,
+            )
+            self._allocations[allocation.allocation_id] = allocation
+            self._next_id += 1
+            return allocation
+
+    def lease(
+        self,
+        capability_id: str,
+        contract: ResourceContract,
+        task_constraints: TaskConstraints | None = None,
+    ) -> ResourceLease:
+        """Atomically reserve resources and return a structured release handle."""
+
+        return ResourceLease(
+            self,
+            self.reserve(capability_id, contract, task_constraints),
         )
-        self._allocations[allocation.allocation_id] = allocation
-        self._next_id += 1
-        return allocation
 
     def release(self, allocation: Allocation) -> None:
-        current = self._allocations.get(allocation.allocation_id)
-        if current != allocation:
-            raise KeyError(f"unknown allocation: {allocation.allocation_id}")
-        del self._allocations[allocation.allocation_id]
+        with self._lock:
+            current = self._allocations.get(allocation.allocation_id)
+            if current != allocation:
+                raise KeyError(f"unknown allocation: {allocation.allocation_id}")
+            del self._allocations[allocation.allocation_id]
