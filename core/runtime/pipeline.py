@@ -38,6 +38,7 @@ class CapabilityExecutionRequest:
     output_path: Path
     timeout_seconds: float | None = None
     expected_image_digest: str | None = None
+    trace_context: TraceContext | None = None
 
     def validate(self) -> None:
         if not self.image or self.image.strip() != self.image:
@@ -90,6 +91,8 @@ class CapabilityRuntime:
         manifest.validate()
         capability_spec.validate()
         request.validate()
+
+        trace = request.trace_context or TraceContext.new_root()
 
         if manifest.capability_id != capability_spec.capability_id:
             raise CapabilityPipelineError(
