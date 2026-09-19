@@ -36,8 +36,7 @@ class RuntimeSpecTests(unittest.TestCase):
         with self.assertRaises(RuntimeSpecError):
             RuntimeSpec(
                 image="alpine:3.22",
-                command=("/bin/sh
-malicious",),
+                command=("/bin/sh" + "\n" + "malicious",),
             ).validate()
 
 
