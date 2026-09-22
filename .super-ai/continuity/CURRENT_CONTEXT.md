@@ -48,6 +48,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - 51-100: supply-chain identity/evidence, validation, benchmarks, reconciliation, hardening, instrumentation, and graduation.
 - 101-131: sandbox security posture, capabilities, syscall/filesystem/network/secret/process controls, quotas, race fencing, evidence, translation, integration, and fail-closed network policy.
 - 132: secret-boundary hardening with bounded value-blind environment validation, explicit forbidden-name support, pre-copy validation, and non-secret audit evidence.
+- 133: process/open-file hardening with bounded SandboxPolicy limits, Apple Container nproc/nofile flags, pre-start rlimit attestation, contract fingerprinting, and fail-closed tests.
 
 ## Key merged commits
 - Step 11: f5afa8339fbe11fa73c7b0829d9c59e2b31fa723
@@ -73,6 +74,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - Step 31: 628651d80357e6d98b2e422492a5d36a5cdc8474
 - Steps 32-131 checkpoint merge: 060a5e5b4570891e8b8a565aa0172d4ef7ba9f49 (PR #47)
 - Step 132: ead4f92bfaa32a3478ad28cd92ac6b8ba2b56c4c (PR #48)
+- Step 133: b71ad948fb6d10c2da43c385f09b420a884ca139 (PR #49)
 
 ## Failure lessons worth retaining
 - Old unit tests can become the first regression signal after a contract is tightened; repair existing callers before adding new behavior.
@@ -91,10 +93,12 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - Main post-merge CI run 171 passed on the merged commit.
 - Step 132 PR #48 was merged after run 176 passed on Python 3.11, 3.12, and 3.13.
 - Step 132 introduced two CI regressions and repaired both: missing forbidden-name local variable / eager policy validation, then preserved the legacy sensitive-environment error wording.
+- Step 133 PR #49 was merged after run 187 passed on Python 3.11, 3.12, and 3.13; main post-merge run 188 also passed.
+- Step 133 introduced fixture/API regressions caught by CI and repaired: rlimit fixture completeness, process-limit mismatch fixture preservation, and runtime fingerprint API compatibility.
 - New unit tests cover control-plane configuration/specs, supply-chain evidence/policy/sync/verification, security posture/boundaries/evidence, cleanup fencing, admission composition, benchmarks, and telemetry.
 
 ## Next-step intent
-Step 133 — Harden process limits. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing process/quota boundary contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
+Step 134 — Harden quotas. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing quota ledger/resource admission contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
 
 ## Never forget
 Do not rewrite history to make the project look cleaner. Preserve prior decisions and failures as learning signals. The next agent should build on the existing system instead of starting over.
