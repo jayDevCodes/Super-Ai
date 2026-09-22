@@ -61,3 +61,31 @@ Limitations:
 - Mirror selection and registry reconciliation are deterministic control-plane components; downloading/executing third-party code remains a separate runtime concern.
 
 Next intended engineering checkpoint: Step 132 — Harden secret boundaries.
+
+## 2026-09-22 — autonomous step 132 — Harden secret boundaries
+
+Branch/PR: autonomous/step-132-secret-boundaries / PR #48.
+Merge commit: ead4f92bfaa32a3478ad28cd92ac6b8ba2b56c4c.
+
+Scope:
+- Hardened the environment boundary with fail-closed, value-blind validation.
+- Added bounded variable count, name/value sizes, and aggregate value size.
+- Rejected unsafe names, non-string values, and control characters.
+- Added explicit forbidden-name support and pre-copy validation for explicit variables.
+- Added non-secret boundary evidence with deterministic fingerprints.
+- Preserved the existing Apple Container/runtime environment isolation contract.
+- Added focused unit tests and ADR 0049.
+
+Research/version assumptions:
+- Python subprocess environment semantics support passing an explicit environment mapping rather than forwarding the host environment.
+- OWASP secret-management/logging guidance was used as the privacy baseline: minimize plaintext exposure and never place secret values in logs/audit evidence.
+- Generic secret-value/entropy detection was intentionally not added; the boundary remains an explicit exclusion contract.
+
+Validation:
+- PR #48 CI run 176 passed on Python 3.11, 3.12, and 3.13.
+- The first two CI attempts exposed and repaired two implementation regressions: a missing forbidden-name local set plus non-eager policy validation, then a legacy error-message compatibility mismatch.
+- The merged main commit is ead4f92bfaa32a3478ad28cd92ac6b8ba2b56c4c.
+
+Remaining limitations:
+- Real Apple Container behavior still needs compatible Apple Silicon smoke validation; hosted Linux CI validates contract semantics.
+- This is not a secret manager. Capabilities needing actual credentials require a future dedicated least-privilege secret boundary.
