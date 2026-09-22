@@ -29,12 +29,17 @@ class CIFailureRepairQueueTests(unittest.TestCase):
         )
         self.assertEqual(
             queue[0]["tests"],
-            [
-                "unit.test_demo.DemoTests.test_second",
-                "unit.test_demo.DemoTests.test_third",
-            ],
+            ["unit.test_demo.DemoTests.test_second"],
         )
         self.assertEqual(queue[1]["issue_id"], "CI-002")
+        self.assertEqual(
+            queue[1]["root_cause"],
+            "AssertionError: expected value",
+        )
+        self.assertEqual(
+            queue[1]["tests"],
+            ["unit.test_demo.DemoTests.test_third"],
+        )
 
     def test_real_github_timestamp_and_bom_are_normalized(self):
         log = """
