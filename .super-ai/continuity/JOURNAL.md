@@ -89,3 +89,32 @@ Validation:
 Remaining limitations:
 - Real Apple Container behavior still needs compatible Apple Silicon smoke validation; hosted Linux CI validates contract semantics.
 - This is not a secret manager. Capabilities needing actual credentials require a future dedicated least-privilege secret boundary.
+
+## 2026-09-22 — autonomous step 133 — Harden process limits
+
+Branch/PR: autonomous/step-133-process-limits / PR #49.
+Merge commit: b71ad948fb6d10c2da43c385f09b420a884ca139.
+
+Scope:
+- bounded SandboxPolicy process limits to 1..4096 and open-file limits to 16..65536;
+- emit Apple Container `--ulimit nproc=N:N` and `--ulimit nofile=M:M`;
+- include process/open-file limits in request identity fingerprint;
+- attest `configuration.initProcess.rlimits` after container creation and before start;
+- require exact RLIMIT_NPROC and RLIMIT_NOFILE soft/hard matches;
+- expose attested limits in SandboxAttestation;
+- add fail-closed unit/benchmark coverage and ADR 0050.
+
+Research baseline:
+- Apple Container exposes rlimits under `configuration.initProcess.rlimits` and maps nproc/nofile to RLIMIT_NPROC/RLIMIT_NOFILE.
+- Apple Container integration tests validate the same inspect shape and exact soft/hard values.
+- RLIMIT_NPROC is UID-scoped and counts Linux processes/threads; it is not a universal container PID counter.
+
+Validation:
+- PR #49 final CI run 187 passed on Python 3.11, 3.12, and 3.13.
+- Main post-merge CI run 188 passed.
+- CI caught and repaired fixture/API regressions before merge.
+
+Remaining limitation:
+- Real Apple Container behavioral validation still requires compatible Apple Silicon/macOS hardware; hosted Linux CI validates the contract semantics and mocked adapter behavior.
+
+Next intended engineering checkpoint: Step 134 — Harden quotas.
