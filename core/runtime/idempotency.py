@@ -243,9 +243,13 @@ def request_fingerprint(
     output_path: str,
     timeout_seconds: float,
     network: str,
-    output_contract: Mapping[str, object],
+    max_processes: int = 64,
+    max_open_files: int = 1024,
+    output_contract: Mapping[str, object] = None,
 ) -> str:
     """Hash stable execution semantics; volatile trace/cancellation data is excluded."""
+    if output_contract is None:
+        raise ValueError("output_contract must be provided")
     payload = {
         "capability_id": capability_id,
         "version": version,
@@ -256,6 +260,8 @@ def request_fingerprint(
         "output_path": output_path,
         "timeout_seconds": timeout_seconds,
         "network": network,
+        "max_processes": max_processes,
+        "max_open_files": max_open_files,
         "output_contract": dict(output_contract),
     }
     canonical = json.dumps(
