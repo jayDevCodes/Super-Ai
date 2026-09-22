@@ -66,6 +66,27 @@ class SecretBoundaryTests(unittest.TestCase):
             SecretBoundaryPolicy(max_value_bytes=0)
         with self.assertRaises(ValueError):
             SecretBoundaryPolicy(max_value_bytes=10, max_total_value_bytes=9)
+        with self.assertRaises(ValueError):
+            SecretBoundaryPolicy(forbidden_names=("BAD-NAME",))
+
+    def test_explicit_forbidden_name_is_rejected(self):
+        policy = SecretBoundaryPolicy(forbidden_names=("INTERNAL_SECRET",))
+        scan = SecretBoundaryScanner(policy).scan({"INTERNAL_SECRET": "value"})
+        self.assertFalse(scan.safe)
+        self.assertEqual(scan.sensitive_names, ("INTERNAL_SECRET",))
+
+    def test_evidence_contains_no_secret_values(self):
+        value = "super-secret-token-value"
+        evidence = SecretBoundaryScanner().evidence({"API_KEY": value})
+        self.assertFalse(evidence.accepted)
+        self.assertEqual(evidence.variable_count, 1)
+        self.assertEqual(evidence.sensitive_name_count, 1)
+        self.assertNotIn(value, str(evidence))
+
+    def test_evidence_fingerprint_is_deterministic(self):
+        environment = {"MODE": "smoke"}
+        scanner = SecretBoundaryScanner()
+        self.assertEqual(scanner.evidence(environment), scanner.evidence(environment))
 
 
 if __name__ == "__main__":
