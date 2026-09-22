@@ -51,6 +51,16 @@ class AttestationTests(unittest.TestCase):
         values.update(kwargs)
         return AttestationPolicy(**values)
 
+    def test_process_limit_contract_bounds_are_validated(self):
+        with self.assertRaises(ValueError):
+            self._policy(expected_max_processes=0).validate()
+        with self.assertRaises(ValueError):
+            self._policy(expected_max_processes=4097).validate()
+        with self.assertRaises(ValueError):
+            self._policy(expected_max_open_files=15).validate()
+        with self.assertRaises(ValueError):
+            self._policy(expected_max_open_files=65537).validate()
+
     def test_valid_configuration_passes(self):
         result = attest_container(
             payload(),
