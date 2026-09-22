@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 from typing import Mapping
 
@@ -50,6 +52,21 @@ class SecretBoundaryPolicy:
             raise ValueError("max_total_value_bytes must be > 0")
         if self.max_value_bytes > self.max_total_value_bytes:
             raise ValueError("max_value_bytes must be <= max_total_value_bytes")
+
+
+@dataclass(frozen=True, slots=True)
+class SecretBoundaryEvidence:
+    """Non-secret audit evidence for one environment boundary evaluation."""
+
+    accepted: bool
+    variable_count: int
+    total_value_bytes: int
+    finding_count: int
+    sensitive_name_count: int
+    invalid_name_count: int
+    invalid_value_count: int
+    oversized_value_count: int
+    fingerprint: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +172,43 @@ class SecretBoundaryScanner:
             oversized_values=tuple(sorted(set(oversized_values))),
             too_many_variables=too_many_variables,
             total_value_limit_exceeded=total_value_limit_exceeded,
+        )
+
+    def evidence(self, environment: Mapping[str, str]) -> SecretBoundaryEvidence:
+        scan = self.scan(environment)
+        material = {
+            "accepted": scan.safe,
+            "variable_count": scan.variable_count,
+            "total_value_bytes": scan.total_value_bytes,
+            "finding_count": len(scan.findings),
+            "sensitive_name_count": len(scan.sensitive_names),
+            "invalid_name_count": len(scan.invalid_names),
+            "invalid_value_count": len(scan.invalid_values),
+            "oversized_value_count": len(scan.oversized_values),
+            "policy": {
+                "max_variables": self._policy.max_variables,
+                "max_name_bytes": self._policy.max_name_bytes,
+                "max_value_bytes": self._policy.max_value_bytes,
+                "max_total_value_bytes": self._policy.max_total_value_bytes,
+            },
+        }
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                material,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        return SecretBoundaryEvidence(
+            accepted=scan.safe,
+            variable_count=scan.variable_count,
+            total_value_bytes=scan.total_value_bytes,
+            finding_count=len(scan.findings),
+            sensitive_name_count=len(scan.sensitive_names),
+            invalid_name_count=len(scan.invalid_names),
+            invalid_value_count=len(scan.invalid_values),
+            oversized_value_count=len(scan.oversized_values),
+            fingerprint=fingerprint,
         )
 
     def sanitize(self, environment: Mapping[str, str]) -> dict[str, str]:
