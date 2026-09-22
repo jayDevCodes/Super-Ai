@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.security.secrets import (
+from core.security import (
     SecretBoundaryError,
     SecretBoundaryPolicy,
     SecretBoundaryScanner,
