@@ -282,6 +282,7 @@ class AppleContainerExecutorTests(unittest.TestCase):
             attestation_overrides={
                 "configuration": {
                     "initProcess": {
+                        "user": {"id": {"uid": 65532, "gid": 65532}},
                         "rlimits": [
                             {"limit": "RLIMIT_NPROC", "soft": 32, "hard": 32},
                             {"limit": "RLIMIT_NOFILE", "soft": 1024, "hard": 1024},
