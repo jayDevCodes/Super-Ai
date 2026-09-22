@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 _ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_LOG_PREFIX_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T[^ ]+Z\s*")
 _TEST_RE = re.compile(
     r"^(?:.*?\b)?(?:ERROR|FAIL): "
     r"(?P<test>[A-Za-z0-9_.]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+)"
@@ -23,7 +24,9 @@ _EXCEPTION_RE = re.compile(
 )
 
 def normalize(line: str) -> str:
-    return _ANSI_RE.sub("", line).strip()
+    line = _ANSI_RE.sub("", line)
+    line = _LOG_PREFIX_RE.sub("", line)
+    return line.strip()
 
 def parse_failures(lines: Iterable[str]) -> list[dict[str, object]]:
     groups: OrderedDict[str, dict[str, object]] = OrderedDict()
