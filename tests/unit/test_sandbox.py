@@ -41,6 +41,8 @@ class AppleContainerSandboxTests(unittest.TestCase):
                 "none",
             )
             self.assertIn("--no-dns", plan.command)
+            self.assertIn("nproc=64:64", plan.command)
+            self.assertIn("nofile=1024:1024", plan.command)
 
 
     def test_plan_carries_workspace_contract(self):
@@ -146,6 +148,26 @@ class AppleContainerSandboxTests(unittest.TestCase):
                     output_path=output,
                     policy=SandboxPolicy(memory_mb=512, cpu_threads=1),
                 )
+
+    def test_process_and_open_file_limits_are_bounded(self):
+        with self.assertRaises(ValueError):
+            SandboxPolicy(
+                memory_mb=512,
+                cpu_threads=1,
+                max_processes=4097,
+            ).validate()
+        with self.assertRaises(ValueError):
+            SandboxPolicy(
+                memory_mb=512,
+                cpu_threads=1,
+                max_open_files=65537,
+            ).validate()
+        with self.assertRaises(ValueError):
+            SandboxPolicy(
+                memory_mb=512,
+                cpu_threads=1,
+                max_open_files=15,
+            ).validate()
 
     def test_policy_validation_rejects_unknown_network_mode(self):
         with self.assertRaises(ValueError):
