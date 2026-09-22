@@ -42,6 +42,9 @@ class SecretBoundaryPolicy:
     max_total_value_bytes: int = 64 * 1024
     forbidden_names: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        self.validate()
+
     def validate(self) -> None:
         if self.max_variables <= 0:
             raise ValueError("max_variables must be > 0")
@@ -127,6 +130,7 @@ class SecretBoundaryScanner:
         oversized_names: list[str] = []
         invalid_values: list[str] = []
         oversized_values: list[str] = []
+        forbidden = {name.upper() for name in self._policy.forbidden_names}
 
         for raw_name, raw_value in environment.items():
             if not isinstance(raw_name, str):
