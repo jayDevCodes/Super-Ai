@@ -14,8 +14,7 @@ _ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _LOG_PREFIX_RE = re.compile(r"^\ufeff?\d{4}-\d{2}-\d{2}T[^ ]+Z\s*")
 _TEST_RE = re.compile(
     r"^(?:.*?\b)?(?:ERROR|FAIL): "
-    r"(?P<test>[A-Za-z0-9_.]+\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+)"
-    r" \([^)]*\)$"
+    r"(?P<method>[A-Za-z0-9_]+) \((?P<test>[A-Za-z0-9_.]+)\)$"
 )
 _EXCEPTION_RE = re.compile(
     r"^(?:[A-Za-z_][\w]*\.)?"
