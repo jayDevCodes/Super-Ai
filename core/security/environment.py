@@ -3,36 +3,36 @@ from __future__ import annotations
 import os
 from typing import Mapping
 
-
-class EnvironmentPolicyError(ValueError):
-    """Raised when an execution environment violates the allowlist policy."""
-
-
-SENSITIVE_NAME_HINTS = (
-    "TOKEN",
-    "PASSWORD",
-    "PASS",
-    "SECRET",
-    "PRIVATE_KEY",
-    "API_KEY",
-    "AUTH",
-    "CREDENTIAL",
+from .secrets import (
+    SecretBoundaryError,
+    SecretBoundaryPolicy,
+    SecretBoundaryScanner,
+    is_sensitive_name,
 )
 
 
-def is_sensitive_name(name: str) -> bool:
-    upper = name.upper()
-    return any(hint in upper for hint in SENSITIVE_NAME_HINTS)
+class EnvironmentPolicyError(ValueError):
+    """Raised when an execution environment violates the allowlist policy."""
 
 
 def build_sandbox_environment(
     explicit: Mapping[str, str] | None = None,
     *,
     inherited_allowlist: tuple[str, ...] = ("PATH", "LANG", "LC_ALL"),
+    policy: SecretBoundaryPolicy | None = None,
 ) -> dict[str, str]:
-    """Build an explicit environment instead of forwarding the host environment."""
+    """Build and validate a bounded environment instead of forwarding the host environment."""
+    normalized_allowlist = tuple(inherited_allowlist)
+    if len(set(normalized_allowlist)) != len(normalized_allowlist):
+        raise EnvironmentPolicyError("inherited_allowlist must not contain duplicates")
+
     result: dict[str, str] = {}
-    for key in inherited_allowlist:
+
+    for key in normalized_allowlist:
+        if not isinstance(key, str) or not key:
+            raise EnvironmentPolicyError(
+                "inherited environment variable names must be non-empty strings"
+            )
         if is_sensitive_name(key):
             raise EnvironmentPolicyError(
                 f"sensitive variable {key!r} cannot be inherited"
@@ -42,19 +42,17 @@ def build_sandbox_environment(
             result[key] = value
 
     for key, value in (explicit or {}).items():
-        if not key or "=" in key or "\x00" in key or "\r" in key or "\n" in key:
-            raise EnvironmentPolicyError("environment variable names must be safe")
-        if is_sensitive_name(key):
+        if not isinstance(key, str) or not key:
             raise EnvironmentPolicyError(
-                f"sensitive environment variable {key!r} is not allowed"
+                "environment variable names must be non-empty strings"
             )
-        if "\x00" in value or "\r" in value or "\n" in value:
+        if not isinstance(value, str):
             raise EnvironmentPolicyError(
-                f"environment variable {key!r} contains unsafe control characters"
-            )
-        if len(value.encode("utf-8")) > 4096:
-            raise EnvironmentPolicyError(
-                f"environment variable {key!r} exceeds 4096-byte limit"
+                f"environment variable {key!r} value must be a string"
             )
         result[key] = value
-    return result
+
+    try:
+        return SecretBoundaryScanner(policy).sanitize(result)
+    except SecretBoundaryError as exc:
+        raise EnvironmentPolicyError(str(exc)) from exc
