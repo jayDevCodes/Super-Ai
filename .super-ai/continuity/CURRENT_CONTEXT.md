@@ -1,8 +1,8 @@
 # Current Super-Ai Context Snapshot
 
-Snapshot point: main @ 060a5e5b4570891e8b8a565aa0172d4ef7ba9f49 (PR #47 merge checkpoint)
-Autonomous checkpoint: steps 32–131 complete; next step 132 — Harden secret boundaries.
-Main CI status at the merge checkpoint: green (GitHub Actions run 171).
+Snapshot point: main @ ead4f92bfaa32a3478ad28cd92ac6b8ba2b56c4c (step 132 merge checkpoint)
+Autonomous checkpoint: steps 32–132 complete; next step 133 — Harden process limits.
+Main CI status at the preceding merge checkpoint was green (GitHub Actions run 171); step 132 branch CI run 176 was green on Python 3.11, 3.12, and 3.13.
 
 ## Mission
 Build a modular personal AI that can decompose large tasks, select deterministic tools/specialized capabilities, execute untrusted third-party capability code only inside a least-privilege sandbox, verify outputs, clean up safely, and stay usable on approximately 8 GB RAM / 256 GB storage.
@@ -47,6 +47,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - 32-50: runtime-spec hardening, evidence, instrumentation, admission composition, and graduation.
 - 51-100: supply-chain identity/evidence, validation, benchmarks, reconciliation, hardening, instrumentation, and graduation.
 - 101-131: sandbox security posture, capabilities, syscall/filesystem/network/secret/process controls, quotas, race fencing, evidence, translation, integration, and fail-closed network policy.
+- 132: secret-boundary hardening with bounded value-blind environment validation, explicit forbidden-name support, pre-copy validation, and non-secret audit evidence.
 
 ## Key merged commits
 - Step 11: f5afa8339fbe11fa73c7b0829d9c59e2b31fa723
@@ -71,6 +72,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - Step 30: 0a7620e605eeb8a4fc3909ce8bcb0a2b382a19b7
 - Step 31: 628651d80357e6d98b2e422492a5d36a5cdc8474
 - Steps 32-131 checkpoint merge: 060a5e5b4570891e8b8a565aa0172d4ef7ba9f49 (PR #47)
+- Step 132: ead4f92bfaa32a3478ad28cd92ac6b8ba2b56c4c (PR #48)
 
 ## Failure lessons worth retaining
 - Old unit tests can become the first regression signal after a contract is tightened; repair existing callers before adding new behavior.
@@ -87,10 +89,12 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - Branch PR #47 completed with 15 commits, 59 changed files, 2282 additions, and 111 deletions before squash merge.
 - Final branch CI run 170 passed on Python 3.11, 3.12, and 3.13.
 - Main post-merge CI run 171 passed on the merged commit.
+- Step 132 PR #48 was merged after run 176 passed on Python 3.11, 3.12, and 3.13.
+- Step 132 introduced two CI regressions and repaired both: missing forbidden-name local variable / eager policy validation, then preserved the legacy sensitive-environment error wording.
 - New unit tests cover control-plane configuration/specs, supply-chain evidence/policy/sync/verification, security posture/boundaries/evidence, cleanup fencing, admission composition, benchmarks, and telemetry.
 
 ## Next-step intent
-Step 132 — Harden secret boundaries. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing secret boundary contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
+Step 133 — Harden process limits. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing process/quota boundary contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
 
 ## Never forget
 Do not rewrite history to make the project look cleaner. Preserve prior decisions and failures as learning signals. The next agent should build on the existing system instead of starting over.
