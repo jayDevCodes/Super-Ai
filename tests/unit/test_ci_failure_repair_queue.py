@@ -41,6 +41,21 @@ class CIFailureRepairQueueTests(unittest.TestCase):
             ["unit.test_demo.DemoTests.test_third"],
         )
 
+    def test_unparsed_failed_test_is_not_dropped(self):
+        log = """
+2026-09-22T12:00:00.0000000Z FAIL: test_unknown (unit.test_demo.DemoTests.test_unknown)
+"""
+        queue = parse_failures(log.splitlines())
+        self.assertEqual(len(queue), 1)
+        self.assertEqual(
+            queue[0]["root_cause"],
+            "UnparsedFailure: no exception signature found",
+        )
+        self.assertEqual(
+            queue[0]["tests"],
+            ["unit.test_demo.DemoTests.test_unknown"],
+        )
+
     def test_real_github_timestamp_and_bom_are_normalized(self):
         log = """
 ﻿2026-09-22T12:56:40.1158639Z ERROR: test_case (unit.test_demo.DemoTests.test_case)
