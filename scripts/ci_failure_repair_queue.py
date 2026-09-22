@@ -30,6 +30,22 @@ def normalize(line: str) -> str:
 def parse_failures(lines: Iterable[str]) -> list[dict[str, object]]:
     groups: OrderedDict[str, dict[str, object]] = OrderedDict()
     current_test: str | None = None
+
+    def flush_unparsed() -> None:
+        nonlocal current_test
+        if current_test is None:
+            return
+        signature = "UnparsedFailure: no exception signature found"
+        group = groups.setdefault(
+            signature,
+            {"status": "unresolved", "root_cause": signature, "tests": []},
+        )
+        tests = group["tests"]
+        assert isinstance(tests, list)
+        if current_test not in tests:
+            tests.append(current_test)
+        current_test = None
+
     for raw in lines:
         line = normalize(raw)
         if not line:
