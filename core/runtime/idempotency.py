@@ -245,7 +245,7 @@ def request_fingerprint(
     network: str,
     max_processes: int = 64,
     max_open_files: int = 1024,
-    output_contract: Mapping[str, object] = None,
+    output_contract: Mapping[str, object] | None = None,
 ) -> str:
     """Hash stable execution semantics; volatile trace/cancellation data is excluded."""
     if output_contract is None:
