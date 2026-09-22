@@ -382,6 +382,8 @@ class AppleContainerExecutor:
                     expected_cpus=plan.policy.cpu_threads,
                     expected_image_digest=expected_digest,
                     expected_user=plan.policy.run_as_user or "",
+                    expected_max_processes=plan.policy.max_processes,
+                    expected_max_open_files=plan.policy.max_open_files,
                 ),
                 network_disabled=plan.policy.network == "disabled",
             )
