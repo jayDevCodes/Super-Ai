@@ -19,6 +19,7 @@ class SandboxPolicy:
     memory_mb: int
     cpu_threads: int
     max_processes: int = 64
+    max_open_files: int = 1024
     timeout_seconds: float = 60.0
     network: str = "disabled"
     network_name: str | None = None
@@ -32,6 +33,8 @@ class SandboxPolicy:
             raise ValueError("cpu_threads must be > 0")
         if self.max_processes <= 0:
             raise ValueError("max_processes must be > 0")
+        if self.max_open_files < 16:
+            raise ValueError("max_open_files must be >= 16")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
         if self.network not in {"disabled", "isolated", "enabled"}:
@@ -309,6 +312,8 @@ class AppleContainerSandbox:
             f"{policy.memory_mb}M",
             "--ulimit",
             f"nproc={policy.max_processes}:{policy.max_processes}",
+            "--ulimit",
+            f"nofile={policy.max_open_files}:{policy.max_open_files}",
             "--mount",
             f"type=bind,source={source},target=/capability,readonly",
             "--mount",
