@@ -139,7 +139,7 @@ Status: planned; steps turn green only after implementation and CI validation.
 130. Security envelope carries filesystem/network intent — completed: Security envelope carries filesystem/network intent.
 131. Network policy defaults remain fail-closed — completed: Network policy defaults remain fail-closed.
 132. Harden secret boundaries — completed: bounded, value-blind environment validation, explicit forbidden-name support, pre-copy validation, and non-secret evidence.
-133. Harden process limits — define contract, tests, evidence, and resource limits where applicable.
+133. Harden process limits — completed: bounded process/open-file policy, Apple Container nproc/nofile enforcement, runtime rlimit attestation, contract fingerprinting, and fail-closed tests.
 134. Harden quotas — define contract, tests, evidence, and resource limits where applicable.
 135. Harden race handling — define contract, tests, evidence, and resource limits where applicable.
 136. Document hardening audits — define contract, tests, evidence, and resource limits where applicable.
