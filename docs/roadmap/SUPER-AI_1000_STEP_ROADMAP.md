@@ -138,7 +138,7 @@ Status: planned; steps turn green only after implementation and CI validation.
 129. Security envelope carries syscall posture — completed: Security envelope carries syscall posture.
 130. Security envelope carries filesystem/network intent — completed: Security envelope carries filesystem/network intent.
 131. Network policy defaults remain fail-closed — completed: Network policy defaults remain fail-closed.
-132. Harden secret boundaries — define contract, tests, evidence, and resource limits where applicable.
+132. Harden secret boundaries — completed: bounded, value-blind environment validation, explicit forbidden-name support, pre-copy validation, and non-secret evidence.
 133. Harden process limits — define contract, tests, evidence, and resource limits where applicable.
 134. Harden quotas — define contract, tests, evidence, and resource limits where applicable.
 135. Harden race handling — define contract, tests, evidence, and resource limits where applicable.
