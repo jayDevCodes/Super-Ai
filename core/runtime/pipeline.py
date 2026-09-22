@@ -243,6 +243,8 @@ class CapabilityRuntime:
                 output_path=str(output_path.resolve()),
                 timeout_seconds=timeout_seconds,
                 network=network,
+                max_processes=sandbox_policy.max_processes,
+                max_open_files=sandbox_policy.max_open_files,
                 output_contract={
                     "required_files": list(output_contract.required_files),
                     "max_files": output_contract.max_files,
