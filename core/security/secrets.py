@@ -140,10 +140,6 @@ class SecretBoundaryScanner:
             if name_bytes > self._policy.max_name_bytes:
                 oversized_names.append(raw_name)
 
-            forbidden = {
-                name.upper()
-                for name in self._policy.forbidden_names
-            }
             if is_sensitive_name(raw_name) or raw_name.upper() in forbidden:
                 sensitive_names.append(raw_name)
 
