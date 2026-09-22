@@ -37,10 +37,10 @@ class AttestationPolicy:
             raise ValueError("expected_user contains unsupported characters")
         if not self.required_mounts:
             raise ValueError("required_mounts must not be empty")
-        if self.expected_max_processes is not None and self.expected_max_processes <= 0:
-            raise ValueError("expected_max_processes must be > 0")
-        if self.expected_max_open_files is not None and self.expected_max_open_files <= 0:
-            raise ValueError("expected_max_open_files must be > 0")
+        if self.expected_max_processes is not None and not 1 <= self.expected_max_processes <= 4096:
+            raise ValueError("expected_max_processes out of range")
+        if self.expected_max_open_files is not None and not 16 <= self.expected_max_open_files <= 65536:
+            raise ValueError("expected_max_open_files out of range")
 
 
 @dataclass(frozen=True, slots=True)
