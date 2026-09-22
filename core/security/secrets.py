@@ -40,6 +40,7 @@ class SecretBoundaryPolicy:
     max_name_bytes: int = 255
     max_value_bytes: int = 4096
     max_total_value_bytes: int = 64 * 1024
+    forbidden_names: tuple[str, ...] = ()
 
     def validate(self) -> None:
         if self.max_variables <= 0:
@@ -52,6 +53,13 @@ class SecretBoundaryPolicy:
             raise ValueError("max_total_value_bytes must be > 0")
         if self.max_value_bytes > self.max_total_value_bytes:
             raise ValueError("max_value_bytes must be <= max_total_value_bytes")
+        for name in self.forbidden_names:
+            if (
+                not isinstance(name, str)
+                or not _SAFE_ENV_NAME_RE.fullmatch(name)
+                or len(name.encode("utf-8")) > self.max_name_bytes
+            ):
+                raise ValueError("forbidden_names must contain safe bounded environment names")
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,7 +140,11 @@ class SecretBoundaryScanner:
             if name_bytes > self._policy.max_name_bytes:
                 oversized_names.append(raw_name)
 
-            if is_sensitive_name(raw_name):
+            forbidden = {
+                name.upper()
+                for name in self._policy.forbidden_names
+            }
+            if is_sensitive_name(raw_name) or raw_name.upper() in forbidden:
                 sensitive_names.append(raw_name)
 
             if not isinstance(raw_value, str):
@@ -190,6 +202,7 @@ class SecretBoundaryScanner:
                 "max_name_bytes": self._policy.max_name_bytes,
                 "max_value_bytes": self._policy.max_value_bytes,
                 "max_total_value_bytes": self._policy.max_total_value_bytes,
+                "forbidden_name_count": len(self._policy.forbidden_names),
             },
         }
         fingerprint = hashlib.sha256(
