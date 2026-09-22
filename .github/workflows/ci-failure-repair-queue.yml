@@ -1,0 +1,42 @@
+name: CI failure repair queue
+
+on:
+  workflow_run:
+    workflows:
+      - Super-Ai tests
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  build-repair-queue:
+    if: \${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download failed logs
+        env:
+          GH_TOKEN: \${{ github.token }}
+          RUN_ID: \${{ github.event.workflow_run.id }}
+        run: |
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > ci-failed.log
+
+      - name: Build one-root-cause-at-a-time queue
+        run: |
+          python scripts/ci_failure_repair_queue.py \
+            --input ci-failed.log \
+            --output ci-failure-repair-queue.json
+          cat ci-failure-repair-queue.json
+
+      - name: Upload repair queue
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-failure-repair-queue
+          path: |
+            ci-failed.log
+            ci-failure-repair-queue.json
