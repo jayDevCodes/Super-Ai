@@ -213,6 +213,7 @@ class CapabilityRuntime:
                 memory_mb=capability_spec.resource.ram_hard_mb,
                 cpu_threads=capability_spec.resource.cpu_threads,
                 max_processes=64,
+                max_open_files=1024,
                 timeout_seconds=timeout_seconds,
                 network=network,
                 network_name=network_name,
