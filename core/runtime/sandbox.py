@@ -31,10 +31,10 @@ class SandboxPolicy:
             raise ValueError("memory_mb must be > 0")
         if self.cpu_threads <= 0:
             raise ValueError("cpu_threads must be > 0")
-        if self.max_processes <= 0:
-            raise ValueError("max_processes must be > 0")
-        if self.max_open_files < 16:
-            raise ValueError("max_open_files must be >= 16")
+        if not 1 <= self.max_processes <= _MAX_PROCESSES:
+            raise ValueError("max_processes out of range")
+        if not _MIN_OPEN_FILES <= self.max_open_files <= _MAX_OPEN_FILES:
+            raise ValueError("max_open_files out of range")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
         if self.network not in {"disabled", "isolated", "enabled"}:
@@ -124,6 +124,10 @@ class SandboxBackend(Protocol):
     ) -> SandboxPlan:
         ...
 
+
+_MAX_PROCESSES = 4096
+_MIN_OPEN_FILES = 16
+_MAX_OPEN_FILES = 65536
 
 _IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@:-]{0,254}$")
 _NETWORK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$")
