@@ -26,6 +26,7 @@ def build_sandbox_environment(
     if len(set(normalized_allowlist)) != len(normalized_allowlist):
         raise EnvironmentPolicyError("inherited_allowlist must not contain duplicates")
 
+    scanner = SecretBoundaryScanner(policy)
     result: dict[str, str] = {}
 
     for key in normalized_allowlist:
@@ -41,18 +42,19 @@ def build_sandbox_environment(
         if value is not None:
             result[key] = value
 
-    for key, value in (explicit or {}).items():
-        if not isinstance(key, str) or not key:
-            raise EnvironmentPolicyError(
-                "environment variable names must be non-empty strings"
-            )
-        if not isinstance(value, str):
-            raise EnvironmentPolicyError(
-                f"environment variable {key!r} value must be a string"
-            )
+    explicit_values = explicit or {}
+    explicit_scan = scanner.scan(explicit_values)
+    if not explicit_scan.safe:
+        detail = "; ".join(explicit_scan.findings)
+        raise EnvironmentPolicyError(
+            "explicit environment violates secret boundary"
+            + (f": {detail}" if detail else "")
+        )
+
+    for key, value in explicit_values.items():
         result[key] = value
 
     try:
-        return SecretBoundaryScanner(policy).sanitize(result)
+        return scanner.sanitize(result)
     except SecretBoundaryError as exc:
         raise EnvironmentPolicyError(str(exc)) from exc
