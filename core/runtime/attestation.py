@@ -21,6 +21,8 @@ class AttestationPolicy:
     required_mounts: tuple[str, ...] = ("/capability", "/workspace")
     require_read_only_root: bool = True
     require_drop_all_capabilities: bool = True
+    expected_max_processes: int | None = None
+    expected_max_open_files: int | None = None
 
     def validate(self) -> None:
         if self.expected_memory_bytes <= 0:
@@ -35,6 +37,10 @@ class AttestationPolicy:
             raise ValueError("expected_user contains unsupported characters")
         if not self.required_mounts:
             raise ValueError("required_mounts must not be empty")
+        if self.expected_max_processes is not None and not 1 <= self.expected_max_processes <= 4096:
+            raise ValueError("expected_max_processes out of range")
+        if self.expected_max_open_files is not None and not 16 <= self.expected_max_open_files <= 65536:
+            raise ValueError("expected_max_open_files out of range")
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +57,8 @@ class SandboxAttestation:
     user: str | None
     network_count: int
     mount_destinations: tuple[str, ...]
+    max_processes: int | None
+    max_open_files: int | None
     passed: bool
 
     def as_dict(self) -> dict[str, object]:
@@ -65,6 +73,8 @@ class SandboxAttestation:
             "user": self.user,
             "network_count": self.network_count,
             "mount_destinations": list(self.mount_destinations),
+            "max_processes": self.max_processes,
+            "max_open_files": self.max_open_files,
             "passed": self.passed,
         }
 
@@ -164,6 +174,12 @@ def attest_container(
             f"container user mismatch: expected {policy.expected_user!r}, got {observed_user!r}"
         )
 
+    max_processes, max_open_files = _attested_rlimits(
+        init_process.get("rlimits"),
+        expected_max_processes=policy.expected_max_processes,
+        expected_max_open_files=policy.expected_max_open_files,
+    )
+
     mounts_raw = configuration.get("mounts")
     if not isinstance(mounts_raw, list):
         raise AttestationError("inspect result is missing mounts")
@@ -225,7 +241,65 @@ def attest_container(
         user=observed_user,
         network_count=network_count,
         mount_destinations=tuple(sorted(set(destinations))),
+        max_processes=max_processes,
+        max_open_files=max_open_files,
         passed=True,
+    )
+
+
+def _attested_rlimits(
+    value: Any,
+    *,
+    expected_max_processes: int | None,
+    expected_max_open_files: int | None,
+) -> tuple[int | None, int | None]:
+    """Validate Apple Container init-process rlimits against the runtime contract."""
+    if expected_max_processes is None and expected_max_open_files is None:
+        return None, None
+
+    if not isinstance(value, list):
+        raise AttestationError("inspect result is missing initProcess rlimits")
+
+    observed: dict[str, tuple[int, int]] = {}
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise AttestationError("inspect result contains an invalid rlimit entry")
+        limit = entry.get("limit")
+        soft = entry.get("soft")
+        hard = entry.get("hard")
+        if not isinstance(limit, str) or not limit:
+            raise AttestationError("inspect result contains an invalid rlimit name")
+        if (
+            not isinstance(soft, int)
+            or isinstance(soft, bool)
+            or soft < 0
+            or not isinstance(hard, int)
+            or isinstance(hard, bool)
+            or hard < 0
+        ):
+            raise AttestationError("inspect result contains an invalid rlimit value")
+        if limit in observed:
+            raise AttestationError(f"duplicate rlimit {limit!r}")
+        if soft > hard:
+            raise AttestationError(f"rlimit {limit!r} soft limit exceeds hard limit")
+        observed[limit] = (soft, hard)
+
+    def expected(limit_name: str, expected_value: int | None) -> int | None:
+        if expected_value is None:
+            return None
+        limits = observed.get(limit_name)
+        if limits is None:
+            raise AttestationError(f"inspect result is missing {limit_name}")
+        soft, hard = limits
+        if soft != expected_value or hard != expected_value:
+            raise AttestationError(
+                f"{limit_name} mismatch: expected {expected_value}, got {soft}:{hard}"
+            )
+        return soft
+
+    return (
+        expected("RLIMIT_NPROC", expected_max_processes),
+        expected("RLIMIT_NOFILE", expected_max_open_files),
     )
 
 

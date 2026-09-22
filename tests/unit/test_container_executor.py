@@ -181,7 +181,11 @@ class FakeRunner:
             "readOnly": True,
             "capDrop": ["ALL"],
             "initProcess": {
-                "user": {"id": {"uid": 65532, "gid": 65532}}
+                "user": {"id": {"uid": 65532, "gid": 65532}},
+                "rlimits": [
+                    {"limit": "RLIMIT_NPROC", "soft": 64, "hard": 64},
+                    {"limit": "RLIMIT_NOFILE", "soft": 1024, "hard": 1024},
+                ],
             },
         }
         status = {"state": "created", "networks": []}
@@ -273,6 +277,43 @@ class AppleContainerExecutorTests(unittest.TestCase):
             self.assertEqual(handle.image_digest, IMAGE_DIGEST)
             handle.cleanup()
 
+    def test_launch_rejects_process_limit_mismatch_before_start(self):
+        runner = FakeRunner(
+            attestation_overrides={
+                "configuration": {
+                    "initProcess": {
+                        "user": {"id": {"uid": 65532, "gid": 65532}},
+                        "rlimits": [
+                            {"limit": "RLIMIT_NPROC", "soft": 32, "hard": 32},
+                            {"limit": "RLIMIT_NOFILE", "soft": 1024, "hard": 1024},
+                        ]
+                    }
+                }
+            }
+        )
+        executor = AppleContainerExecutor(runner=runner)
+
+        with TemporaryDirectory() as temp:
+            output = Path(temp) / "output"
+            output.mkdir()
+            plan = self._plan(temp, source_path=Path(temp), output_path=output)
+            with self.assertRaisesRegex(
+                SandboxExecutionError,
+                "RLIMIT_NPROC mismatch",
+            ):
+                executor.launch(
+                    plan,
+                    cwd=output,
+                    environment={"PATH": "/usr/bin"},
+                )
+
+        self.assertFalse(
+            any(call[:3] == ("container", "start", "--attach") for call in runner.calls)
+        )
+        self.assertTrue(
+            any(call[:3] == ("container", "delete", "--force") for call in runner.calls)
+        )
+
     def test_launch_rejects_attestation_mismatch_before_start(self):
         runner = FakeRunner(
             attestation_overrides={
@@ -356,6 +397,9 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 call for call in runner.calls if call[:2] == ("container", "create")
             )
             self.assertIn("--network", create_call)
+            self.assertIn("--ulimit", create_call)
+            self.assertIn("nproc=64:64", create_call)
+            self.assertIn("nofile=1024:1024", create_call)
             self.assertEqual(
                 create_call[create_call.index("--network") + 1],
                 "none",

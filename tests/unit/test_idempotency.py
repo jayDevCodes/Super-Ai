@@ -126,10 +126,18 @@ class IdempotencyCoordinatorTests(unittest.TestCase):
         first = request_fingerprint(**common)
         second = request_fingerprint(**common)
         changed = request_fingerprint(**{**common, "command": ("false",)})
+        changed_process = request_fingerprint(
+            **{**common, "max_processes": 32}
+        )
+        changed_files = request_fingerprint(
+            **{**common, "max_open_files": 2048}
+        )
 
         self.assertEqual(first, second)
         self.assertEqual(len(first), 64)
         self.assertNotEqual(first, changed)
+        self.assertNotEqual(first, changed_process)
+        self.assertNotEqual(first, changed_files)
 
 
 if __name__ == "__main__":

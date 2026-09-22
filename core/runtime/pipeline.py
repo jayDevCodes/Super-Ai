@@ -213,6 +213,7 @@ class CapabilityRuntime:
                 memory_mb=capability_spec.resource.ram_hard_mb,
                 cpu_threads=capability_spec.resource.cpu_threads,
                 max_processes=64,
+                max_open_files=1024,
                 timeout_seconds=timeout_seconds,
                 network=network,
                 network_name=network_name,
@@ -242,6 +243,8 @@ class CapabilityRuntime:
                 output_path=str(output_path.resolve()),
                 timeout_seconds=timeout_seconds,
                 network=network,
+                max_processes=sandbox_policy.max_processes,
+                max_open_files=sandbox_policy.max_open_files,
                 output_contract={
                     "required_files": list(output_contract.required_files),
                     "max_files": output_contract.max_files,
