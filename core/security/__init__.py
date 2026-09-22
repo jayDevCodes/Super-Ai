@@ -12,6 +12,7 @@ from .quotas import QuotaError, QuotaLedger, ResourceQuota
 from .race import FenceError, FenceToken, OwnershipFence
 from .secrets import (
     SecretBoundaryError,
+    SecretBoundaryEvidence,
     SecretBoundaryPolicy,
     SecretBoundaryScanner,
     SecretScan,
@@ -40,6 +41,7 @@ __all__ = [
     "ResourceQuota",
     "SecretBoundary",
     "SecretBoundaryError",
+    "SecretBoundaryEvidence",
     "SecretBoundaryPolicy",
     "SecretBoundaryScanner",
     "SecretMode",
