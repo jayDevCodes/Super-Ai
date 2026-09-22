@@ -104,9 +104,11 @@ class SecretBoundaryScanner:
         oversized_values: list[str] = []
 
         for raw_name, raw_value in environment.items():
-            name = raw_name if isinstance(raw_name, str) else repr(raw_name)
-            if not isinstance(raw_name, str) or not _SAFE_ENV_NAME_RE.fullmatch(raw_name):
-                invalid_names.append(name)
+            if not isinstance(raw_name, str):
+                invalid_names.append("<non-string-key>")
+                continue
+            if not _SAFE_ENV_NAME_RE.fullmatch(raw_name):
+                invalid_names.append(raw_name)
                 continue
 
             name_bytes = len(raw_name.encode("utf-8"))
