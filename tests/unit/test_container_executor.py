@@ -181,7 +181,11 @@ class FakeRunner:
             "readOnly": True,
             "capDrop": ["ALL"],
             "initProcess": {
-                "user": {"id": {"uid": 65532, "gid": 65532}}
+                "user": {"id": {"uid": 65532, "gid": 65532}},
+                "rlimits": [
+                    {"limit": "RLIMIT_NPROC", "soft": 64, "hard": 64},
+                    {"limit": "RLIMIT_NOFILE", "soft": 1024, "hard": 1024},
+                ],
             },
         }
         status = {"state": "created", "networks": []}
@@ -356,6 +360,9 @@ class AppleContainerExecutorTests(unittest.TestCase):
                 call for call in runner.calls if call[:2] == ("container", "create")
             )
             self.assertIn("--network", create_call)
+            self.assertIn("--ulimit", create_call)
+            self.assertIn("nproc=64:64", create_call)
+            self.assertIn("nofile=1024:1024", create_call)
             self.assertEqual(
                 create_call[create_call.index("--network") + 1],
                 "none",
