@@ -98,7 +98,9 @@ class SecretScan:
     @property
     def findings(self) -> tuple[str, ...]:
         findings: list[str] = []
-        findings.extend(f"sensitive variable: {name}" for name in self.sensitive_names)
+        findings.extend(
+            f"sensitive environment variable: {name}" for name in self.sensitive_names
+        )
         findings.extend(f"invalid variable name: {name}" for name in self.invalid_names)
         findings.extend(f"variable name too long: {name}" for name in self.oversized_names)
         findings.extend(f"invalid variable value: {name}" for name in self.invalid_values)
