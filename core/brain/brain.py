@@ -189,6 +189,19 @@ class Brain:
                 task,
                 trace_context=trace,
             )
+            for planned_step in plan.steps:
+                if planned_step.route.policy_state is PolicyDecisionState.OWNER_OVERRIDE:
+                    self._record(
+                        "brain.owner_policy_decision",
+                        {
+                            "task_id": task.task_id,
+                            "step_id": planned_step.step.step_id,
+                            "capability_id": planned_step.route.entry.manifest.capability_id,
+                            "proof_id": owner_grant.proof_id if owner_grant else "",
+                            "original_policy_reasons": planned_step.route.policy_reasons,
+                        },
+                        trace_context=trace,
+                    )
 
         if plan.requires_confirmation and not confirmed and owner_grant is None:
             raise BrainError("task requires human confirmation before execution")
