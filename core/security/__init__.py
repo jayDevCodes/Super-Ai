@@ -57,4 +57,10 @@ __all__ = [
     "compile_security_envelope",
     "is_sensitive_name",
     "security_arguments",
+    "OwnerAuthorization",
+    "OwnerAuthorizationError",
+    "OwnerAuthRecord",
+    "OwnerOverrideGrant",
 ]
+
+from .owner_override import OwnerAuthorization, OwnerAuthorizationError, OwnerAuthRecord, OwnerOverrideGrant
