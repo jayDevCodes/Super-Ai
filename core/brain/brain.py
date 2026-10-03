@@ -66,7 +66,6 @@ class Brain:
         task: Task,
         *,
         trace_context: TraceContext | None = None,
-        owner_override: OwnerOverrideGrant | None = None,
     ) -> BrainPlan:
         task.validate()
         trace = trace_context or TraceContext.new_root()
@@ -81,7 +80,6 @@ class Brain:
                     task_constraints=task.constraints,
                 ),
                 include_confirmation=True,
-                owner_override=owner_override is not None,
             )
             if route.policy_state is PolicyDecisionState.DENY:
                 raise BrainError(
@@ -99,6 +97,50 @@ class Brain:
         )
         self._record(
             "brain.plan_created",
+            {
+                "task_id": task.task_id,
+                "step_count": len(planned),
+                "requires_confirmation": confirmation,
+            },
+            trace_context=trace,
+        )
+        return result
+
+    def _plan_with_owner_decision(
+        self,
+        task: Task,
+        *,
+        trace_context: TraceContext | None = None,
+    ) -> BrainPlan:
+        task.validate()
+        trace = trace_context or TraceContext.new_root()
+        planned: list[PlannedStep] = []
+        confirmation = False
+
+        for step in task.steps:
+            route = self._router.select(
+                RouteRequest(
+                    goal=step.description,
+                    capability_id=step.capability_id,
+                    task_constraints=task.constraints,
+                ),
+                include_confirmation=True,
+                owner_override=True,
+            )
+            if route.policy_state is PolicyDecisionState.DENY:
+                raise BrainError(f"step {step.step_id!r} remains denied")
+            if route.policy_state is PolicyDecisionState.CONFIRM:
+                confirmation = True
+            planned.append(PlannedStep(step=step, route=route))
+
+        result = BrainPlan(
+            task_id=task.task_id,
+            steps=tuple(planned),
+            requires_confirmation=confirmation,
+            trace_context=trace,
+        )
+        self._record(
+            "brain.plan_created_with_owner_decision",
             {
                 "task_id": task.task_id,
                 "step_count": len(planned),
@@ -143,10 +185,9 @@ class Brain:
                 },
                 trace_context=trace,
             )
-            plan = self.plan(
+            plan = self._plan_with_owner_decision(
                 task,
                 trace_context=trace,
-                owner_override=owner_grant,
             )
 
         if plan.requires_confirmation and not confirmed and owner_grant is None:
