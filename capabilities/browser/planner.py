@@ -5,6 +5,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import re
 from typing import Mapping
 from urllib.error import URLError
 from urllib.parse import urlparse
@@ -255,6 +256,8 @@ Return ONLY schema-valid JSON."""
         timeout_seconds: float = 45.0,
         temperature: float = 0.0,
         max_history_items: int = 6,
+        keep_alive: str | None = None,
+        max_output_tokens: int = 384,
     ) -> None:
         self.model = (
             model
@@ -285,9 +288,22 @@ Return ONLY schema-valid JSON."""
             raise ValueError("temperature must be between 0 and 2")
         if max_history_items < 0:
             raise ValueError("max_history_items must be >= 0")
+        configured_keep_alive = (
+            keep_alive
+            or os.getenv("SUPER_AI_OLLAMA_KEEP_ALIVE")
+            or "5m"
+        ).strip()
+        if not re.fullmatch(r"(?:0|[1-9][0-9]*(?:ms|s|m|h))", configured_keep_alive):
+            raise ValueError(
+                "keep_alive must be 0 or a positive duration such as 500ms, 5s, 5m, or 1h"
+            )
+        if max_output_tokens <= 0 or max_output_tokens > 4096:
+            raise ValueError("max_output_tokens must be between 1 and 4096")
         self.timeout_seconds = float(timeout_seconds)
         self.temperature = float(temperature)
         self.max_history_items = max_history_items
+        self.keep_alive = configured_keep_alive
+        self.max_output_tokens = int(max_output_tokens)
 
     def plan(
         self,
@@ -332,7 +348,11 @@ Return ONLY schema-valid JSON."""
                 user_message,
             ],
             "format": self.PLAN_SCHEMA,
-            "options": {"temperature": self.temperature},
+            "options": {
+                "temperature": self.temperature,
+                "num_predict": self.max_output_tokens,
+            },
+            "keep_alive": self.keep_alive,
         }
 
         response = self._post_json("/api/chat", payload)
