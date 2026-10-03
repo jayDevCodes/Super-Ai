@@ -158,6 +158,8 @@ class TaskModelManager:
         *,
         max_ram_mb: int | None = None,
         max_disk_mb: int | None = None,
+        reserved_ram_mb: int = 0,
+        reserved_disk_mb: int = 0,
         requires_vision: bool = False,
         escalate: bool = False,
     ) -> ModelSelection:
@@ -172,6 +174,12 @@ class TaskModelManager:
         )
         if budget_disk <= 0:
             raise ValueError("max_disk_mb must be > 0")
+        if reserved_ram_mb < 0 or reserved_disk_mb < 0:
+            raise ValueError("reserved resource budgets must be >= 0")
+        model_ram_budget = budget_ram - reserved_ram_mb
+        model_disk_budget = budget_disk - reserved_disk_mb
+        if model_ram_budget <= 0 or model_disk_budget <= 0:
+            raise ModelManagerError("task leaves no resource budget for a local model")
 
         tokens = _TOKEN_RE.findall(goal.lower())
         token_set = set(tokens)
@@ -209,8 +217,8 @@ class TaskModelManager:
         candidates = [
             spec
             for spec in self.catalog
-            if spec.estimated_ram_mb <= budget_ram
-            and spec.disk_mb <= budget_disk
+            if spec.estimated_ram_mb <= model_ram_budget
+            and spec.disk_mb <= model_disk_budget
             and (not visual or spec.supports_vision)
         ]
         if not candidates:
@@ -232,7 +240,8 @@ class TaskModelManager:
             spec=selected,
             reason=(
                 f"browser={browser}, visual={visual}, complex={complex_task}, "
-                f"ram_budget={budget_ram}MB, disk_budget={budget_disk}MB"
+                f"ram_budget={model_ram_budget}MB, disk_budget={model_disk_budget}MB, "
+                f"reserved_ram={reserved_ram_mb}MB, reserved_disk={reserved_disk_mb}MB"
             ),
         )
 
@@ -243,6 +252,8 @@ class TaskModelManager:
         *,
         max_ram_mb: int | None = None,
         max_disk_mb: int | None = None,
+        reserved_ram_mb: int = 0,
+        reserved_disk_mb: int = 0,
         requires_vision: bool = False,
         escalate: bool = False,
         ephemeral: bool | None = None,
@@ -251,6 +262,8 @@ class TaskModelManager:
             goal,
             max_ram_mb=max_ram_mb,
             max_disk_mb=max_disk_mb,
+            reserved_ram_mb=reserved_ram_mb,
+            reserved_disk_mb=reserved_disk_mb,
             requires_vision=requires_vision,
             escalate=escalate,
         )
