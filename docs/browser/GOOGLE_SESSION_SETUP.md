@@ -23,7 +23,7 @@ The current catalog includes:
 - qwen3.5:2b-q4_K_M (~1.9 GB) for normal browser work;
 - qwen3.5:4b-q4_K_M (~3.4 GB) for more complex or visual work.
 
-All three current Qwen3.5 variants support image input. \uE200cite\uE202turn376713search1\uE202turn376713search0\uE202turn376713search3\uE201
+All three current Qwen3.5 variants support image input.
 
 When a task starts, the Brain/model manager checks the task's RAM/disk budget and the browser capability footprint. It reuses an already-installed model when present; otherwise it pulls the selected model. At task end it unloads the model from RAM and removes it only when Super-Ai installed it for that task.
 
@@ -71,7 +71,7 @@ Super-Ai will repeatedly:
 6. when accessibility context is insufficient, request a screenshot and feed that image to the next planning cycle;
 7. continue until deterministic evidence proves the requested post-condition.
 
-This follows the current Playwright guidance to refresh refs after page changes, use find for cheaper targeted lookup, and use screenshots selectively when visual context is needed. \uE200cite\uE202turn931725search0\uE202turn931725search2\uE201
+This follows the current Playwright guidance to refresh refs after page changes, use find for cheaper targeted lookup, and use screenshots selectively when visual context is needed.
 
 ## 5. Consequential actions
 
