@@ -50,7 +50,7 @@ class BrowserGoalAgent:
         transport: PlaywrightCliTransport,
         planner: BrowserIntentPlanner,
         max_cycles: int = 12,
-        max_actions_per_cycle: int = 4,
+        max_actions_per_cycle: int = 1,
     ) -> None:
         if max_cycles <= 0:
             raise ValueError("max_cycles must be > 0")
@@ -193,6 +193,10 @@ class BrowserGoalAgent:
                     if len(history) > 12:
                         del history[:-12]
                     self._assert_current_origin(task)
+
+                    # Playwright invalidates accessibility refs when the page changes.
+                    # Stop after one action so the next cycle always plans from fresh state.
+                    break
 
                 post = self._observe(task)
                 if plan.verification.text or plan.verification.url_contains:
