@@ -11,6 +11,7 @@ from .capabilities import (
     SpecialistModelSpec,
     SpecialistSelection,
 )
+from .task_catalog import TaskCatalog, TaskUnit, default_task_catalog
 
 __all__ = [
     "DEFAULT_MODEL_CATALOG",
@@ -22,4 +23,7 @@ __all__ = [
     "SpecialistModelRegistry",
     "SpecialistModelSpec",
     "SpecialistSelection",
+    "TaskCatalog",
+    "TaskUnit",
+    "default_task_catalog",
 ]

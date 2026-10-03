@@ -63,6 +63,8 @@ The Brain/task model manager selects a model from a small local catalog using ta
 
 For compact code repair, the catalog now has Qwen2.5-Coder 0.5B and 1.5B profiles. Optional embedding, speech, OCR, image and video workers are kept in a separate, resource-gated specialist catalog; they are not downloaded or activated merely by being listed. Run `python3 scripts/run_model_learning_demo.py` to exercise the routing lessons without downloading model weights. See [the multimodal runtime plan](docs/research/MULTIMODAL_RUNTIME.md) for the acceptance-test learning loop and safe quantization/sharding/offload strategy.
 
+The [1,000-unit task catalog](docs/research/TASK_CATALOG_1000.md) maps each bounded unit to a current open-model/runtime candidate plus a verifier. It gives Super-Ai a stable evaluation surface for teaching routing and measuring regressions; `python3 scripts/run_task_catalog_demo.py` inspects representative units with no downloads.
+
 The controller uses one browser action per planning cycle, obtains fresh accessibility refs after each action, and can request a selective screenshot for visual context rather than sending screenshots on every cycle. Consequential external effects still stop for confirmation.
 
 
