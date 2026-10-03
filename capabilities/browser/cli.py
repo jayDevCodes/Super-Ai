@@ -139,8 +139,23 @@ class PlaywrightCliTransport:
     def goto(self, url: str) -> PlaywrightCliResult:
         return self._mutate("goto", url)
 
+    def go_back(self) -> PlaywrightCliResult:
+        return self._mutate("go-back")
+
+    def go_forward(self) -> PlaywrightCliResult:
+        return self._mutate("go-forward")
+
+    def reload(self) -> PlaywrightCliResult:
+        return self._mutate("reload")
+
     def click(self, target: str) -> PlaywrightCliResult:
         return self._mutate("click", normalize_ref(target))
+
+    def dblclick(self, target: str) -> PlaywrightCliResult:
+        return self._mutate("dblclick", normalize_ref(target))
+
+    def hover(self, target: str) -> PlaywrightCliResult:
+        return self._mutate("hover", normalize_ref(target))
 
     def fill(self, target: str, value: str) -> PlaywrightCliResult:
         return self._mutate("fill", normalize_ref(target), value)
@@ -159,6 +174,17 @@ class PlaywrightCliTransport:
 
     def press(self, key: str) -> PlaywrightCliResult:
         return self._mutate("press", key)
+
+    def dialog_accept(self, prompt: str | None = None) -> PlaywrightCliResult:
+        if prompt is None:
+            return self._mutate("dialog-accept")
+        return self._mutate("dialog-accept", prompt)
+
+    def dialog_dismiss(self) -> PlaywrightCliResult:
+        return self._mutate("dialog-dismiss")
+
+    def upload(self, path: Path) -> PlaywrightCliResult:
+        return self._mutate("upload", str(Path(path).expanduser().resolve()))
 
     def scroll(self, direction: str, amount: int) -> PlaywrightCliResult:
         if direction not in {"up", "down", "left", "right"}:
