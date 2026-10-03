@@ -1,4 +1,8 @@
-"""First-party browser automation capability for Super-Ai."""
+"""First-party browser automation capability for Super-Ai.
+
+Natural-language planning and closed-loop execution are implemented behind
+explicit origin, session, and confirmation boundaries.
+"""
 
 from .agent import (
     BrowserAction,
