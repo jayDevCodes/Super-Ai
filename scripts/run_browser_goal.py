@@ -13,6 +13,17 @@ from capabilities.browser.goal_agent import BrowserGoalAgent
 from capabilities.browser.planner import OllamaBrowserIntentPlanner
 
 
+def _confirm(plan) -> bool:
+    print("\nSuper-Ai wants to perform a consequential browser action.")
+    if plan.confirmation_reason:
+        print(f"Reason: {plan.confirmation_reason}")
+    for index, action in enumerate(plan.actions, start=1):
+        target = action.target or action.url or ""
+        print(f"  {index}. {action.kind}" + (f" -> {target}" if target else ""))
+    answer = input("Approve this action? [y/N]: ").strip().lower()
+    return answer in {"y", "yes"}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run a natural-language Super-Ai browser goal."
@@ -73,7 +84,10 @@ def main() -> int:
             planner=planner,
             max_cycles=args.max_cycles,
         )
-        result = agent.run(task)
+        result = agent.run(
+            task,
+            confirmation_callback=None if args.confirm else _confirm,
+        )
         print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
         return 0 if result.status == "completed" else 2
     except Exception as exc:
