@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import base64
 import json
 import os
+from pathlib import Path
 from typing import Mapping
 from urllib.error import URLError
 from urllib.parse import urlparse
@@ -21,6 +23,8 @@ class BrowserObservation:
     snapshot: str
     allowed_origins: tuple[str, ...] = field(default_factory=tuple)
     max_snapshot_chars: int = 60_000
+    screenshot_path: Path | None = None
+    max_screenshot_bytes: int = 2_000_000
 
     def validate(self) -> None:
         if not self.url:
@@ -31,6 +35,22 @@ class BrowserObservation:
             raise ValueError("max_snapshot_chars must be > 0")
         if not self.allowed_origins:
             raise ValueError("allowed_origins must be explicit")
+        if self.max_screenshot_bytes <= 0:
+            raise ValueError("max_screenshot_bytes must be > 0")
+        if self.screenshot_path is not None:
+            path = Path(self.screenshot_path).expanduser().resolve()
+            if not path.is_file():
+                raise ValueError("screenshot_path must point to an existing file")
+            if path.stat().st_size > self.max_screenshot_bytes:
+                raise ValueError("screenshot exceeds the planner image size limit")
+
+    @property
+    def bounded_screenshot_base64(self) -> str | None:
+        self.validate()
+        if self.screenshot_path is None:
+            return None
+        raw = Path(self.screenshot_path).expanduser().resolve().read_bytes()
+        return base64.b64encode(raw).decode("ascii")
 
     @property
     def bounded_snapshot(self) -> str:
@@ -292,15 +312,24 @@ Return ONLY schema-valid JSON."""
             f"{observation.bounded_snapshot}\n\n"
             "RECENT NON-SENSITIVE STEP SUMMARIES:\n"
             f"{history_text or '[none]'}\n\n"
-            "Choose only the next useful actions. Do not assume unseen UI state."
+            "Choose only the next useful action. Do not assume unseen UI state."
         )
+        user_message = {"role": "user", "content": user_prompt}
+        screenshot = observation.bounded_screenshot_base64
+        if screenshot is not None:
+            user_message["images"] = [screenshot]
+            user_message["content"] += (
+                "\nA screenshot is attached because the previous controller action "
+                "requested visual context. Use it only as visual evidence; the latest "
+                "accessibility refs remain authoritative for interaction."
+            )
         payload = {
             "model": self.model,
             "stream": False,
             "think": False,
             "messages": [
                 {"role": "system", "content": self.SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
+                user_message,
             ],
             "format": self.PLAN_SCHEMA,
             "options": {"temperature": self.temperature},
