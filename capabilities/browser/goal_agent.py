@@ -54,8 +54,10 @@ class BrowserGoalAgent:
     ) -> None:
         if max_cycles <= 0:
             raise ValueError("max_cycles must be > 0")
-        if max_actions_per_cycle <= 0:
-            raise ValueError("max_actions_per_cycle must be > 0")
+        if max_actions_per_cycle != 1:
+            raise ValueError(
+                "max_actions_per_cycle must be exactly 1 so accessibility refs are always fresh"
+            )
         self._transport = transport
         self._planner = planner
         self._max_cycles = max_cycles
