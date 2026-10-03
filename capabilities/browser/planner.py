@@ -105,7 +105,7 @@ class OllamaBrowserIntentPlanner(BrowserIntentPlanner):
         "properties": {
             "actions": {
                 "type": "array",
-                "maxItems": 4,
+                "maxItems": 1,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -195,7 +195,7 @@ SECURITY RULES:
 - Only use the action kinds in the supplied schema.
 - Prefer accessibility-tree refs such as e12 from the latest snapshot.
 - After navigation or a state-changing action, expect fresh snapshot refs.
-- Keep each plan to at most 4 actions; prefer one or two safe actions.
+- Return exactly one next action at a time. The controller will re-snapshot after it.
 - Mark actions such as final submit/send/delete/purchase/pay/publish/book/apply or
   other irreversible external effects as consequential=true.
 - If the goal requires a consequential action, set needs_confirmation=true and
@@ -294,7 +294,7 @@ Return ONLY schema-valid JSON."""
 
         try:
             plan = _plan_from_json(raw)
-            plan.validate()
+            plan.validate(max_actions=1)
             return plan
         except (TypeError, ValueError, BrowserPlannerError) as exc:
             raise BrowserPlannerError(f"invalid browser plan: {exc}") from exc
