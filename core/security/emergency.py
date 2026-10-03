@@ -27,10 +27,14 @@ class EmergencyRequest:
     directive: str | None = None
 
     def validate(self) -> None:
-        if self.command is EmergencyCommand.STOP_TASK:
+        if self.command in {EmergencyCommand.STOP_TASK, EmergencyCommand.RESUME_TASK}:
             if not self.task_id or not self.task_id.strip():
-                raise ValueError("stop_task requires task_id")
+                raise ValueError(f"{self.command.value} requires task_id")
+            if self.directive is not None:
+                raise ValueError(f"{self.command.value} does not accept directive")
         elif self.command is EmergencyCommand.OWNER_DIRECTIVE:
+            if self.task_id is not None:
+                raise ValueError("owner_directive does not accept task_id")
             if not self.directive or not self.directive.strip():
                 raise ValueError("owner_directive requires directive")
             if len(self.directive) > 4096:
@@ -236,8 +240,8 @@ class EmergencyAuthority:
         if task_id not in current.stopped_tasks:
             raise EmergencyAuthorityError("task is not currently stopped")
         request = EmergencyRequest(
-            command=EmergencyCommand.OWNER_DIRECTIVE,
-            directive=f"resume task {task_id}",
+            command=EmergencyCommand.RESUME_TASK,
+            task_id=task_id,
         )
         grant = self.execute(request, owner_code=owner_code)
         next_state = EmergencyState(
