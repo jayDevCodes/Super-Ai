@@ -148,12 +148,14 @@ class OwnerAuthorization:
             expires = datetime.now(timezone.utc) + timedelta(seconds=self.grant_ttl_seconds)
             proof_material = f"{grant_id}:{scope_digest}:{expires.isoformat()}".encode("utf-8")
             proof_id = hashlib.sha256(proof_material).hexdigest()
-            return OwnerOverrideGrant(
+            grant = OwnerOverrideGrant(
                 grant_id=grant_id,
                 scope_digest=scope_digest,
                 expires_at=expires.isoformat(),
                 proof_id=proof_id,
             )
+            self._issued_grants[grant_id] = scope_digest
+            return grant
 
     def consume(self, grant: OwnerOverrideGrant, *, scope_digest: str) -> None:
         if not isinstance(grant, OwnerOverrideGrant):
