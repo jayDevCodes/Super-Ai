@@ -3,3 +3,4 @@
 .super-ai/browser/workspace/
 .playwright/
 .playwright-cli/
+.super-ai/security/owner_auth.json
