@@ -292,8 +292,7 @@ class OwnerAuthorization:
             raise ValueError(
                 f"owner authentication secret must be at least {cls.MIN_SECRET_LENGTH} characters"
             )
-        if " " in secret or "" in secret or "
-" in secret:
+        if "\x00" in secret or "\r" in secret or "\n" in secret:
             raise ValueError("owner authentication secret contains forbidden control characters")
 
 
@@ -305,6 +304,7 @@ def _derive(secret: str, salt: bytes, n: int, r: int, p: int) -> bytes:
             n=n,
             r=r,
             p=p,
+            dklen=32,
             maxmem=256 * 1024 * 1024,
         )
     except (ValueError, MemoryError) as exc:

@@ -1,6 +1,9 @@
 # Super-Ai local state
+__pycache__/
 .super-ai/browser/profile/
 .super-ai/browser/workspace/
+.super-ai/browser/tooling/
+.super-ai/browser/bin/
 .playwright/
 .playwright-cli/
 .super-ai/security/owner_auth.json

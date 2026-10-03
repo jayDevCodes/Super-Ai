@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -39,10 +40,11 @@ class PlaywrightCliTransport:
         timeout_seconds: float = 45.0,
         output_dir: Path | None = None,
     ) -> None:
+        local_executable = Path(".super-ai/browser/bin/playwright-cli")
         self.executable = (
             executable
             or os.getenv("SUPER_AI_PLAYWRIGHT_CLI")
-            or "playwright-cli"
+            or (str(local_executable) if local_executable.is_file() else "playwright-cli")
         )
         if not self.executable or self.executable.strip() != self.executable:
             raise ValueError("Playwright CLI executable must be a trimmed string")
@@ -218,7 +220,19 @@ class PlaywrightCliTransport:
         return self.run(*args)
 
     def current_url(self) -> PlaywrightCliResult:
-        return self.eval("() => location.href", raw=True)
+        result = self.eval("() => location.href", raw=True)
+        try:
+            url = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise PlaywrightCliError("Playwright CLI returned an invalid current URL") from exc
+        if not isinstance(url, str):
+            raise PlaywrightCliError("Playwright CLI returned a non-text current URL")
+        return PlaywrightCliResult(
+            args=result.args,
+            returncode=result.returncode,
+            stdout=url,
+            stderr=result.stderr,
+        )
 
 
 def _redact_args(args: tuple[str, ...]) -> tuple[str, ...]:
