@@ -1,0 +1,34 @@
+name: Security verifier tests
+
+on:
+  pull_request:
+    paths:
+      - "core/security/owner_override.py"
+      - "core/security/__init__.py"
+      - "core/brain/brain.py"
+      - "core/router/router.py"
+      - "core/policy/engine.py"
+      - "tests/unit/test_owner_authorization.py"
+      - "tests/unit/test_brain_owner_decision.py"
+      - "tests/unit/test_router.py"
+      - "scripts/setup_owner_auth.py"
+      - ".github/workflows/security-verifier-tests.yml"
+
+jobs:
+  verifier-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run verifier tests
+        run: |
+          python -m unittest tests.unit.test_owner_authorization tests.unit.test_brain_owner_decision tests.unit.test_router -v
