@@ -185,10 +185,16 @@ class PlaywrightCliTransport:
         filename = Path(path).expanduser().resolve()
         return self._mutate("screenshot", f"--filename={filename}")
 
-    def eval(self, expression: str) -> PlaywrightCliResult:
+    def eval(self, expression: str, *, raw: bool = False) -> PlaywrightCliResult:
         if not expression or not expression.strip():
             raise ValueError("eval expression must be non-empty")
-        return self._mutate("eval", expression)
+        args = ["eval", expression]
+        if raw:
+            args.append("--raw")
+        return self.run(*args)
+
+    def current_url(self) -> PlaywrightCliResult:
+        return self.eval("() => location.href", raw=True)
 
 
 def _bound(value: str, limit: int = 200_000) -> str:
