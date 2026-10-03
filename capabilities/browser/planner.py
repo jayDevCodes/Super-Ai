@@ -120,15 +120,23 @@ class OllamaBrowserIntentPlanner(BrowserIntentPlanner):
                                 "snapshot",
                                 "find_text",
                                 "click",
+                                "dblclick",
+                                "hover",
                                 "fill",
                                 "type",
                                 "select",
                                 "check",
                                 "uncheck",
                                 "press",
+                                "dialog_accept",
+                                "dialog_dismiss",
                                 "scroll",
                                 "wait",
+                                "reload",
+                                "go_back",
+                                "go_forward",
                                 "screenshot",
+                                "upload",
                                 "extract_text",
                             ],
                         },
@@ -198,6 +206,10 @@ SECURITY RULES:
 - Never bypass CAPTCHA, 2FA, access controls, browser security warnings, or rate limits.
 - Only use the action kinds in the supplied schema.
 - Prefer accessibility-tree refs such as e12 from the latest snapshot.
+- Use find before a full snapshot when the page is large and only one label/element must be located.
+- Handle blocking browser dialogs explicitly with dialog_accept or dialog_dismiss only when the observed modal state justifies it.
+- Use reload/go_back/go_forward when recovery is grounded in the observed navigation state.
+- Use upload only for an existing workspace-local file; never invent or fetch a local path.
 - After navigation or a state-changing action, expect fresh snapshot refs.
 - Return exactly one next action at a time. The controller will re-snapshot after it.
 - Mark actions such as final submit/send/delete/purchase/pay/publish/book/apply or
