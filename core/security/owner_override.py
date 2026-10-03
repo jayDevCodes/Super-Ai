@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 import secrets
 from threading import RLock
@@ -209,29 +210,67 @@ class OwnerAuthorization:
 
     def _write_record(self, record: OwnerAuthRecord) -> None:
         record.validate()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload: dict[str, Any] = {
-            "version": record.version,
-            "algorithm": record.algorithm,
-            "salt_b64": record.salt_b64,
-            "digest_b64": record.digest_b64,
-            "scrypt_n": record.scrypt_n,
-            "scrypt_r": record.scrypt_r,
-            "scrypt_p": record.scrypt_p,
-            "created_at": record.created_at,
-        }
-        temp = self.path.with_suffix(self.path.suffix + ".tmp")
-        temp.write_text(json.dumps(payload, sort_keys=True, indent=2) + "
-", encoding="utf-8")
+        if self.path.is_symlink():
+            raise OwnerAuthorizationError("owner-auth verifier path must not be a symlink")
+
+        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         try:
-            temp.chmod(0o600)
+            self.path.parent.chmod(0o700)
         except OSError:
             pass
-        temp.replace(self.path)
+
+        payload = json.dumps(
+            {
+                "version": record.version,
+                "algorithm": record.algorithm,
+                "salt_b64": record.salt_b64,
+                "digest_b64": record.digest_b64,
+                "scrypt_n": record.scrypt_n,
+                "scrypt_r": record.scrypt_r,
+                "scrypt_p": record.scrypt_p,
+                "created_at": record.created_at,
+            },
+            sort_keys=True,
+            indent=2,
+        ) + "\n"
+
+        temp = self.path.parent / f".{self.path.name}.{secrets.token_hex(16)}.tmp"
+        fd: int | None = None
         try:
-            self.path.chmod(0o600)
-        except OSError:
-            pass
+            fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                fd = None
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp, self.path)
+
+            try:
+                dir_fd = os.open(self.path.parent, os.O_RDONLY)
+            except OSError:
+                dir_fd = None
+            if dir_fd is not None:
+                try:
+                    os.fsync(dir_fd)
+                except OSError:
+                    pass
+                finally:
+                    os.close(dir_fd)
+
+            try:
+                self.path.chmod(0o600)
+            except OSError:
+                pass
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     @classmethod
     def scope_for_task(cls, task_id: str, goal: str) -> str:
