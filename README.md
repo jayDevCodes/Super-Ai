@@ -47,3 +47,17 @@ python3 scripts/run_browser_task.py path/to/task.json
 Add `--confirm` only when the task intentionally includes a consequential action.
 
 Google credentials are never stored in the repository. Log in once to the dedicated profile manually and keep `.super-ai/browser/profile/` local.
+
+
+For natural-language browser work, install a local Ollama planner and run:
+
+```bash
+ollama pull qwen3.5:4b-q4_K_M
+python3 scripts/run_browser_goal.py \
+  "Open my Google-hosted app and inspect the current page" \
+  --start-url https://example.google.com/ \
+  --allowed-origin https://example.google.com \
+  --allowed-origin https://accounts.google.com
+```
+
+The controller uses one browser action per planning cycle, obtains a fresh accessibility snapshot after each action, and stops for confirmation before consequential external effects.
