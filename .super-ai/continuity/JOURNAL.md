@@ -143,3 +143,23 @@ Validation:
 Remaining limitations:
 - No model was downloaded during this catalog-only step; Ollama availability and measured latency/RSS still need target-host benchmark runs.
 - The existing UI remains a separate local working-tree artifact and is intentionally outside this research increment.
+
+## 2026-10-03 — autonomous step 134 — Harden quotas
+
+Branch/PR: `codex/harden-quotas` / PR #54.
+Merge commit: a845240.
+
+Scope:
+- made quota admission atomic with an in-memory lock;
+- added opaque `QuotaReservation` leases with exact resource identity;
+- made lease release single-use and fail-closed for unknown or mismatched leases;
+- retained legacy aggregate reserve/release methods for existing simple callers;
+- added ADR 0051 and focused tests.
+
+Validation:
+- local focused tests and full suite passed: 277 tests, 1 skipped;
+- PR #54 CI passed unit and verifier matrices on Python 3.11, 3.12 and 3.13;
+- dashboard health and its fenced, read-only Example Domain browser demo also passed.
+
+Remaining limitation:
+- reservations remain process-local; crash recovery or distributed leasing requires a future explicit expiry and ownership contract.
