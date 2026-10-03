@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "core/security/owner_override.py"
+      - "core/security/emergency.py"
       - "core/security/__init__.py"
       - "core/brain/brain.py"
       - "core/router/router.py"
       - "core/policy/engine.py"
       - "tests/unit/test_owner_authorization.py"
+      - "tests/unit/test_emergency_authority.py"
       - "tests/unit/test_brain_owner_decision.py"
       - "tests/unit/test_router.py"
       - "scripts/setup_owner_auth.py"
