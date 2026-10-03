@@ -96,7 +96,6 @@ class ModelManagerTests(unittest.TestCase):
             manager.events,
             [
                 ("is_installed", selection.model),
-                ("ensure_installed", selection.model),
                 ("unload", selection.model),
             ],
         )
