@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from core.contracts import CapabilitySpec, ResourceContract, TaskConstraints
-from core.policy import CapabilityPolicy, CapabilityPolicyEngine
+from core.policy import CapabilityPolicy, CapabilityPolicyEngine, PolicyDecisionState
 from core.router import CapabilityRouter, RouteRequest, RoutingError
 from registry.catalog import CapabilityRegistry, RegistryEntry
 from registry.manifest import ArtifactSpec, CapabilityManifest
@@ -68,6 +68,21 @@ class RouterTests(unittest.TestCase):
         router = CapabilityRouter(self.registry, engine)
         with self.assertRaises(RoutingError):
             router.select(RouteRequest(goal="delete files"))
+
+    def test_owner_decision_can_select_a_policy_denied_candidate(self):
+        engine = CapabilityPolicyEngine(
+            CapabilityPolicy(allowed_permissions=frozenset({"browser"}))
+        )
+        router = CapabilityRouter(self.registry, engine)
+        result = router.select(
+            RouteRequest(
+                goal="delete files",
+                required_permissions=frozenset({"filesystem"}),
+            ),
+            owner_override=True,
+        )
+        self.assertEqual(result.entry.manifest.capability_id, "filesystem.delete")
+        self.assertEqual(result.policy_state, PolicyDecisionState.OWNER_OVERRIDE)
 
     def test_confirmation_can_be_included_explicitly(self):
         request = RouteRequest(
