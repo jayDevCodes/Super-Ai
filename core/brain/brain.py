@@ -127,10 +127,20 @@ class Brain:
                 with self._model_manager.use_for_task(
                     step.description,
                     max_ram_mb=task.constraints.max_ram_mb,
+                    max_disk_mb=task.constraints.max_disk_mb,
                 ) as selection:
                     step_context = dict(context)
                     step_context["__model_name"] = selection.model
                     step_context["__model_reason"] = selection.reason
+                    self._record(
+                        "brain.model_selected",
+                        {
+                            "step_id": step.step_id,
+                            "model": selection.model,
+                            "reason": selection.reason,
+                        },
+                        trace_context=trace,
+                    )
                     output = self._runner.run(route, step, step_context)
             else:
                 output = self._runner.run(route, step, context)
