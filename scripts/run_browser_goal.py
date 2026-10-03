@@ -11,6 +11,7 @@ from capabilities.browser.agent import BrowserTask
 from capabilities.browser.cli import PlaywrightCliTransport
 from capabilities.browser.goal_agent import BrowserGoalAgent
 from capabilities.browser.planner import OllamaBrowserIntentPlanner
+from core.models import TaskModelManager
 
 
 def _confirm(plan) -> bool:
@@ -74,20 +75,28 @@ def main() -> int:
             headed=not args.headless,
             confirmed=args.confirm,
         )
-        planner = OllamaBrowserIntentPlanner(
-            model=args.model,
-            base_url=args.ollama_url,
-        )
-        transport = PlaywrightCliTransport(session=args.session)
-        agent = BrowserGoalAgent(
-            transport=transport,
-            planner=planner,
-            max_cycles=args.max_cycles,
-        )
-        result = agent.run(
-            task,
-            confirmation_callback=None if args.confirm else _confirm,
-        )
+        manager = TaskModelManager(base_url=args.ollama_url)
+
+        if args.model:
+            selection = manager.selection_for_model(args.model)
+        else:
+            selection = manager.select(args.goal)
+
+        with manager.use(selection):
+            planner = OllamaBrowserIntentPlanner(
+                model=selection.model,
+                base_url=args.ollama_url,
+            )
+            transport = PlaywrightCliTransport(session=args.session)
+            agent = BrowserGoalAgent(
+                transport=transport,
+                planner=planner,
+                max_cycles=args.max_cycles,
+            )
+            result = agent.run(
+                task,
+                confirmation_callback=None if args.confirm else _confirm,
+            )
         print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
         return 0 if result.status == "completed" else 2
     except Exception as exc:
