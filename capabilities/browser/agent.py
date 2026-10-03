@@ -75,6 +75,10 @@ class BrowserAction:
         elif self.kind == "screenshot" and not self.path:
             raise ValueError("screenshot action requires path")
 
+        if self.target is not None and len(self.target) > 4096:
+            raise ValueError("target is too long")
+        if self.value is not None and len(self.value) > 100_000:
+            raise ValueError("action value is too large")
         if self.url is not None and len(self.url) > 2048:
             raise ValueError("url is too long")
         if self.path is not None and "\x00" in self.path:
@@ -178,8 +182,8 @@ class BrowserAgent:
 
         profile = normalized.profile_dir.expanduser().resolve()
         workspace = normalized.workspace_dir.expanduser().resolve()
-        profile.mkdir(parents=True, exist_ok=True)
-        workspace.mkdir(parents=True, exist_ok=True)
+        _ensure_directory(profile, "profile")
+        _ensure_directory(workspace, "workspace")
 
         outputs: list[str] = []
         screenshots: list[str] = []
@@ -352,6 +356,15 @@ def _normalize_origin(url: str) -> str:
 
 def _validate_https_origin_url(url: str) -> None:
     _normalize_origin(url)
+
+
+def _ensure_directory(path: Path, label: str) -> None:
+    if path.exists() and path.is_symlink():
+        raise BrowserAgentError(f"{label} directory must not be a symlink")
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise BrowserAgentError(f"{label} directory could not be prepared") from exc
 
 
 def _safe_workspace_path(workspace: Path, requested: str) -> Path:
