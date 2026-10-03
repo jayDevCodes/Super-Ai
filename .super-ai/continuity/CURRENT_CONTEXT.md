@@ -1,7 +1,7 @@
 # Current Super-Ai Context Snapshot
 
-Snapshot point: main @ 6a2abe0 (hardening-audit documentation merge)
-Autonomous checkpoint: steps 32–136 complete; next step 137 — Document capability drops.
+Snapshot point: main @ 03c704c (capability-drop documentation merge)
+Autonomous checkpoint: steps 32–137 complete; next step 138 — Document syscall posture.
 Main CI status at the preceding merge checkpoint was green (GitHub Actions run 171); step 132 branch CI run 176 was green on Python 3.11, 3.12, and 3.13.
 
 ## Mission
@@ -53,6 +53,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - 134: quota-lease hardening with atomic admission, opaque single-use leases, exact-match release validation, and fail-closed tests.
 - 135: race-fence hardening with token validation, atomic release, ownership replacement handoff, and concurrency tests.
 - 136: hardening audit documentation with named control IDs, deterministic evidence metadata, and a tested audit map.
+- 137: capability-drop documentation with explicit denial semantics and default-zero capability tests.
 
 ## Key merged commits
 - Step 11: f5afa8339fbe11fa73c7b0829d9c59e2b31fa723
@@ -110,7 +111,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - New unit tests cover control-plane configuration/specs, supply-chain evidence/policy/sync/verification, security posture/boundaries/evidence, cleanup fencing, admission composition, benchmarks, and telemetry.
 
 ## Next-step intent
-Step 137 — Document capability drops. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing capability-boundary contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
+Step 138 — Document syscall posture. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing syscall posture contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
 
 ## Never forget
 Do not rewrite history to make the project look cleaner. Preserve prior decisions and failures as learning signals. The next agent should build on the existing system instead of starting over.

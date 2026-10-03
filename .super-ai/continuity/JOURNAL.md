@@ -197,3 +197,17 @@ Scope:
 Validation:
 - local full suite passed: 281 tests, 1 skipped;
 - PR #56 CI passed unit and verifier matrices on Python 3.11, 3.12 and 3.13.
+
+## 2026-10-03 — autonomous step 137 — Document capability drops
+
+Branch/PR: `codex/document-capability-drops` / PR #57.
+Merge commit: 03c704c.
+
+Scope:
+- documented explicit capability allowlisting and fail-closed unknown requests;
+- documented why model size does not change worker privilege;
+- added tests for default-zero capabilities and no silent drops.
+
+Validation:
+- local full suite passed: 283 tests, 1 skipped;
+- PR #57 CI passed on Python 3.11, 3.12 and 3.13.
