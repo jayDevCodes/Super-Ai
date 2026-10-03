@@ -10,7 +10,7 @@ from core.router import RouteCandidate
 from .agent import BrowserTask
 from .cli import PlaywrightCliTransport
 from .goal_agent import BrowserGoalAgent, BrowserGoalResult
-from .planner import BrowserIntentPlanner
+from .planner import BrowserIntentPlanner, OllamaBrowserIntentPlanner
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,16 +29,18 @@ class BrowserBrainOutput:
 class BrowserGoalStepRunner(StepRunner):
     """Adapt a natural-language Brain step into the closed-loop browser agent."""
 
+    requires_model = True
+
     def __init__(
         self,
         *,
-        planner: BrowserIntentPlanner,
+        planner: BrowserIntentPlanner | None = None,
         session: str = "super-ai-browser",
         profile_dir: Path = Path(".super-ai/browser/profile"),
         workspace_dir: Path = Path(".super-ai/browser/workspace"),
         headed: bool = True,
         max_cycles: int = 12,
-        max_actions_per_cycle: int = 4,
+        max_actions_per_cycle: int = 1,
         confirmation_callback: Callable[[object], bool] | None = None,
     ) -> None:
         self._planner = planner
@@ -85,9 +87,19 @@ class BrowserGoalStepRunner(StepRunner):
         )
 
         transport = PlaywrightCliTransport(session=self._session)
+        planner = self._planner
+        selected_model = context.get("__model_name")
+        if selected_model is not None:
+            if not isinstance(selected_model, str) or not selected_model.strip():
+                raise ValueError("context contains invalid __model_name")
+            if planner is None or isinstance(planner, OllamaBrowserIntentPlanner):
+                planner = OllamaBrowserIntentPlanner(model=selected_model)
+        if planner is None:
+            planner = OllamaBrowserIntentPlanner()
+
         goal_agent = BrowserGoalAgent(
             transport=transport,
-            planner=self._planner,
+            planner=planner,
             max_cycles=self._max_cycles,
             max_actions_per_cycle=self._max_actions_per_cycle,
         )
