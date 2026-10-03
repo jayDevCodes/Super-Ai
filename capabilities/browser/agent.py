@@ -193,6 +193,7 @@ class BrowserAgent:
                 browser="chrome",
             )
             outputs.append(opened.stdout)
+            self._assert_current_origin(normalized)
 
             for index, action in enumerate(normalized.actions, start=1):
                 if action.consequential and not normalized.confirmed:
@@ -202,6 +203,7 @@ class BrowserAgent:
 
                 result = self._run_action(action, normalized, workspace)
                 outputs.append(result.stdout)
+                self._assert_current_origin(normalized)
 
                 if action.kind == "screenshot" and action.path:
                     screenshot_path = _safe_workspace_path(workspace, action.path)
@@ -221,6 +223,19 @@ class BrowserAgent:
             raise BrowserAgentError(
                 f"browser task failed: {type(exc).__name__}: {exc}"
             ) from exc
+
+    def _assert_current_origin(self, task: BrowserTask) -> None:
+        current = self._transport.current_url().stdout.strip()
+        if not current:
+            raise BrowserAgentError("browser returned an empty current URL")
+        try:
+            allowed = task.origin_allowed(current)
+        except ValueError as exc:
+            raise BrowserAgentError("browser reached an invalid URL") from exc
+        if not allowed:
+            raise BrowserAgentError(
+                f"browser reached an unallowlisted origin: {_normalize_origin(current)}"
+            )
 
     def _run_action(
         self,
