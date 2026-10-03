@@ -5,6 +5,7 @@ on:
     paths:
       - "capabilities/browser/**"
       - "tests/capability/test_browser_agent.py"
+      - "tests/capability/test_browser_planner.py"
       - ".github/workflows/browser-capability.yml"
   push:
     branches:
@@ -28,4 +29,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Run browser capability tests
-        run: python -m unittest discover -s tests/capability -p "test_browser_agent.py" -v
+        run: |
+          python -m unittest discover -s tests/capability -p "test_browser_agent.py" -v
+          python -m unittest discover -s tests/capability -p "test_browser_planner.py" -v
