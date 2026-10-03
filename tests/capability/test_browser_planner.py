@@ -11,6 +11,7 @@ from capabilities.browser.planner import (
     BrowserPlan,
     BrowserPlannerError,
     BrowserVerification,
+    OllamaBrowserIntentPlanner,
     _plan_from_json,
 )
 
@@ -228,6 +229,10 @@ class BrowserPlannerTests(unittest.TestCase):
             max_snapshot_chars=5,
         )
         self.assertIn("TRUNCATED", obs.bounded_snapshot)
+
+    def test_remote_planner_requires_explicit_opt_in(self):
+        with self.assertRaises(ValueError):
+            OllamaBrowserIntentPlanner(base_url="https://planner.example.com")
 
     def test_plan_rejects_too_many_actions(self):
         plan = BrowserPlan(
