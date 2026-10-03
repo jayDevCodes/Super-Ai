@@ -241,6 +241,26 @@ class BrowserAgent:
                 f"browser reached an unallowlisted origin: {_normalize_origin(current)}"
             )
 
+    def execute_action(
+        self,
+        task: BrowserTask,
+        action: BrowserAction,
+    ) -> PlaywrightCliResult:
+        normalized = BrowserTask(
+            goal=task.goal,
+            start_url=task.start_url,
+            actions=(action,),
+            allowed_origins=task.allowed_origins,
+            session=task.session,
+            profile_dir=task.profile_dir,
+            workspace_dir=task.workspace_dir,
+            headed=task.headed,
+            confirmed=True,
+        )
+        normalized.validate()
+        workspace = normalized.workspace_dir.expanduser().resolve()
+        return self._run_action(action, normalized, workspace)
+
     def _run_action(
         self,
         action: BrowserAction,
