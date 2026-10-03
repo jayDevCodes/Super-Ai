@@ -1,0 +1,5 @@
+# Super-Ai local state
+.super-ai/browser/profile/
+.super-ai/browser/workspace/
+.playwright/
+.playwright-cli/

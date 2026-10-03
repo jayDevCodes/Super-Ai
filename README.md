@@ -26,3 +26,39 @@ Network access is denied by default at the security-posture layer. Third-party s
 The project uses the standard library for the new control-plane modules. The existing GitHub Actions workflow runs the repository unit-test suite on Python 3.11, 3.12 and 3.13.
 
 See docs/autonomy/ for the autonomous engineering protocol and docs/architecture/ for system contracts.
+
+
+## Browser task capability
+
+Super-Ai includes a first-party `browser.agent` capability for controlled Chrome automation. It uses the official Playwright CLI, a dedicated persistent browser profile, explicit HTTPS origin allowlists, deterministic accessibility-tree interactions, bounded output, and confirmation gates for consequential actions.
+
+Install it with:
+
+```bash
+bash scripts/install/browser-agent.sh
+```
+
+Create a task JSON using `docs/browser/GOOGLE_SESSION_SETUP.md`, then run:
+
+```bash
+python3 scripts/run_browser_task.py path/to/task.json
+```
+
+Add `--confirm` only when the task intentionally includes a consequential action.
+
+Google credentials are never stored in the repository. Log in once to the dedicated profile manually and keep `.super-ai/browser/profile/` local.
+
+
+For natural-language browser work, Super-Ai can manage the local planner model per task:
+
+```bash
+python3 scripts/run_browser_goal.py \
+  "Open my Google-hosted app and inspect the current page" \
+  --start-url https://example.google.com/ \
+  --allowed-origin https://example.google.com \
+  --allowed-origin https://accounts.google.com
+```
+
+The Brain/task model manager selects a model from a small local catalog using task type plus RAM/disk budgets. For browser work it prefers the smallest viable Qwen3.5 model, escalates to the 4B variant for complex/visual goals, reuses a model already present on disk, otherwise downloads it temporarily, unloads it from RAM after the task, and deletes only models that Super-Ai downloaded for that task.
+
+The controller uses one browser action per planning cycle, obtains fresh accessibility refs after each action, and can request a selective screenshot for visual context rather than sending screenshots on every cycle. Consequential external effects still stop for confirmation.
