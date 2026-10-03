@@ -9,6 +9,7 @@ from core.router import CapabilityRouter, RouteCandidate, RouteRequest
 from core.policy import PolicyDecisionState
 from core.audit import HashChainAuditStore
 from core.observability import TraceContext
+from core.models import TaskModelManager
 
 
 class BrainError(RuntimeError):
@@ -49,11 +50,13 @@ class Brain:
         runner: StepRunner,
         max_workers: int = 4,
         audit_store: HashChainAuditStore | None = None,
+        model_manager: TaskModelManager | None = None,
     ) -> None:
         self._router = router
         self._runner = runner
         self._max_workers = max_workers
         self._audit = audit_store
+        self._model_manager = model_manager
 
     def plan(
         self,
@@ -118,7 +121,19 @@ class Brain:
             route = routes.get(step.step_id)
             if route is None:
                 raise BrainError(f"missing route for step {step.step_id!r}")
-            output = self._runner.run(route, step, context)
+            if self._model_manager is not None and bool(
+                getattr(self._runner, "requires_model", False)
+            ):
+                with self._model_manager.use_for_task(
+                    step.description,
+                    max_ram_mb=task.constraints.max_ram_mb,
+                ) as selection:
+                    step_context = dict(context)
+                    step_context["__model_name"] = selection.model
+                    step_context["__model_reason"] = selection.reason
+                    output = self._runner.run(route, step, step_context)
+            else:
+                output = self._runner.run(route, step, context)
             self._record(
                 "brain.step_completed",
                 {
