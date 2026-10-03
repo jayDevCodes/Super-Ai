@@ -140,22 +140,22 @@ class PlaywrightCliTransport:
         return self._mutate("goto", url)
 
     def click(self, target: str) -> PlaywrightCliResult:
-        return self._mutate("click", target)
+        return self._mutate("click", normalize_ref(target))
 
     def fill(self, target: str, value: str) -> PlaywrightCliResult:
-        return self._mutate("fill", target, value)
+        return self._mutate("fill", normalize_ref(target), value)
 
     def type(self, value: str) -> PlaywrightCliResult:
         return self._mutate("type", value)
 
     def select(self, target: str, value: str) -> PlaywrightCliResult:
-        return self._mutate("select", target, value)
+        return self._mutate("select", normalize_ref(target), value)
 
     def check(self, target: str) -> PlaywrightCliResult:
-        return self._mutate("check", target)
+        return self._mutate("check", normalize_ref(target))
 
     def uncheck(self, target: str) -> PlaywrightCliResult:
-        return self._mutate("uncheck", target)
+        return self._mutate("uncheck", normalize_ref(target))
 
     def press(self, key: str) -> PlaywrightCliResult:
         return self._mutate("press", key)
@@ -204,9 +204,28 @@ def _redact_args(args: tuple[str, ...]) -> tuple[str, ...]:
     index = sensitive_after.get(command)
     if index is not None and len(redacted) > index:
         redacted[index] = "<redacted>"
+    if len(redacted) > 1 and re_match_ref(redacted[1]):
+        redacted[1] = normalize_ref(redacted[1])
     return tuple(redacted)
 
 
+def normalize_ref(target: str) -> str:
+    if target.startswith("@") and target[1:].startswith("e") and target[2:].isdigit():
+        return target[1:]
+    return target
+
+
+def re_match_ref(target: str) -> bool:
+    return (
+        target.startswith("@e")
+        and target[2:].isdigit()
+    ) or (
+        target.startswith("e")
+        and target[1:].isdigit()
+    )
+
+
+def _bound(value: str, limit: int = 200_000) -> str:
 def _bound(value: str, limit: int = 200_000) -> str:
     if len(value) <= limit:
         return value
