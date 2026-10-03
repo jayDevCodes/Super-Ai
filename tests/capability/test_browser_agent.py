@@ -16,13 +16,20 @@ from capabilities.browser.agent import (
 class FakeTransport:
     def __init__(self) -> None:
         self.calls: list[tuple[str, ...]] = []
+        self._current_url = "https://example.com"
 
     def open(self, url, **kwargs):
         self.calls.append(("open", url))
+        self._current_url = url
         return FakeResult("opened")
+
+    def current_url(self):
+        self.calls.append(("current_url",))
+        return FakeResult(self._current_url)
 
     def goto(self, url):
         self.calls.append(("goto", url))
+        self._current_url = url
         return FakeResult("goto")
 
     def snapshot(self):
@@ -100,6 +107,35 @@ class BrowserAgentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             task.validate()
 
+    def test_fill_requires_value(self) -> None:
+        with self.assertRaises(ValueError):
+            BrowserAction(kind="fill", target="@e1").validate()
+
+    def test_select_requires_value(self) -> None:
+        with self.assertRaises(ValueError):
+            BrowserAction(kind="select", target="@e1").validate()
+
+    def test_redirect_to_unallowlisted_origin_is_rejected(self) -> None:
+        transport = FakeTransport()
+        agent = BrowserAgent(transport)
+        task = BrowserTask(
+            goal="Follow only approved pages",
+            start_url="https://example.com",
+            allowed_origins=("https://example.com",),
+            actions=(BrowserAction(kind="goto", url="https://example.com/next"),),
+        )
+        transport._current_url = "https://example.com"
+        original_goto = transport.goto
+
+        def redirecting_goto(url):
+            result = original_goto(url)
+            transport._current_url = "https://accounts.evil.example"
+            return result
+
+        transport.goto = redirecting_goto
+        with self.assertRaises(BrowserAgentError):
+            agent.execute(task)
+
     def test_embedded_credentials_are_rejected(self) -> None:
         task = BrowserTask(
             goal="Open a page",
@@ -156,7 +192,7 @@ class BrowserAgentTests(unittest.TestCase):
             self.assertEqual(result.steps_completed, 3)
             self.assertEqual(
                 [call[0] for call in transport.calls],
-                ["open", "snapshot", "find", "eval"],
+                ["open", "current_url", "snapshot", "current_url", "find", "current_url", "eval", "current_url"],
             )
 
     def test_screenshot_cannot_escape_workspace(self) -> None:
