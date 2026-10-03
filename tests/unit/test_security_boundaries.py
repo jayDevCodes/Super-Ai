@@ -1,7 +1,7 @@
 import unittest
 
 from core.security.capabilities import CapabilityBoundary, CapabilityBoundaryError
-from core.security.network import NetworkBoundary
+from core.security.network import NetworkBoundary, NetworkBoundaryError
 from core.security.secrets import SecretBoundaryScanner
 
 
@@ -25,6 +25,14 @@ class SecurityBoundaryTests(unittest.TestCase):
         boundary = NetworkBoundary(frozenset({"example.com"}))
         self.assertTrue(boundary.permits_url("https://example.com/path"))
         self.assertFalse(boundary.permits_url("http://example.com/path"))
+        self.assertFalse(boundary.permits_url("https://example.com@evil.example/path"))
+        with self.assertRaises(NetworkBoundaryError):
+            NetworkBoundary(frozenset({"example.com/path"})).validate()
+
+    def test_cidr_allowlist_is_explicit(self):
+        boundary = NetworkBoundary(allowed_cidrs=("192.0.2.0/24",))
+        self.assertTrue(boundary.permits_ip("192.0.2.10"))
+        self.assertFalse(boundary.permits_ip("198.51.100.10"))
 
     def test_secret_scanner(self):
         scan = SecretBoundaryScanner().scan({"PATH": "/bin", "API_KEY": "x"})
