@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 
-from capabilities.browser.agent import BrowserAgent, BrowserTask
+from capabilities.browser.agent import BrowserAction, BrowserAgent, BrowserTask
 from capabilities.browser.cli import PlaywrightCliTransport
 
 
@@ -29,13 +29,8 @@ def main() -> int:
             goal=str(payload["goal"]),
             start_url=str(payload["start_url"]),
             actions=tuple(
-                item
-                for item in (
-                    __import__("capabilities.browser.agent", fromlist=["BrowserAction"]).BrowserAction(
-                        **action
-                    )
-                    for action in payload.get("actions", [])
-                )
+                BrowserAction(**action)
+                for action in payload.get("actions", [])
             ),
             allowed_origins=tuple(str(item) for item in payload["allowed_origins"]),
             session=str(payload.get("session", "super-ai-browser")),
