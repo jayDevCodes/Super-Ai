@@ -115,13 +115,14 @@ class BrowserGoalAgent:
                 )
                 risky = risky or _goal_requires_confirmation(task.goal)
 
+                plan_approved = task.confirmed
                 if risky and not task.confirmed:
-                    approved = (
+                    plan_approved = (
                         confirmation_callback(plan)
                         if confirmation_callback is not None
                         else False
                     )
-                    if not approved:
+                    if not plan_approved:
                         return BrowserGoalResult(
                             status="confirmation_required",
                             goal=task.goal,
@@ -160,13 +161,13 @@ class BrowserGoalAgent:
                     )
 
                 for action in plan.actions:
-                    if action.consequential and not task.confirmed:
-                        approved = (
+                    if action.consequential and not plan_approved:
+                        plan_approved = (
                             confirmation_callback(plan)
                             if confirmation_callback is not None
                             else False
                         )
-                        if not approved:
+                        if not plan_approved:
                             return BrowserGoalResult(
                                 status="confirmation_required",
                                 goal=task.goal,
