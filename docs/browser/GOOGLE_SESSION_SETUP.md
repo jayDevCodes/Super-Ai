@@ -14,27 +14,18 @@ bash scripts/install/browser-agent.sh
 
 The script installs the current Playwright CLI and browser runtime.
 
-## 2. Install a local planning model
+## 2. Local model lifecycle
 
-The natural-language planner uses Ollama locally. For an approximately 8 GB machine, a small Qwen3.5 model is the intended starting point.
+The natural-language planner uses local Ollama. Super-Ai now chooses a task-sized Qwen3.5 model from its managed catalog instead of requiring one fixed model to stay installed.
 
-Recommended planning model:
+The current catalog includes:
+- qwen3.5:0.8b for lightweight extraction/classification;
+- qwen3.5:2b-q4_K_M (~1.9 GB) for normal browser work;
+- qwen3.5:4b-q4_K_M (~3.4 GB) for more complex or visual work.
 
-```bash
-ollama pull qwen3.5:4b-q4_K_M
-```
+All three current Qwen3.5 variants support image input. \uE200cite\uE202turn376713search1\uE202turn376713search0\uE202turn376713search3\uE201
 
-The current Ollama registry lists this model at about 3.4 GB. A smaller option is:
-
-```bash
-ollama pull qwen3.5:2b-q4_K_M
-```
-
-Set the choice with:
-
-```bash
-export SUPER_AI_BROWSER_MODEL=qwen3.5:4b-q4_K_M
-```
+When a task starts, the Brain/model manager checks the task's RAM/disk budget and the browser capability footprint. It reuses an already-installed model when present; otherwise it pulls the selected model. At task end it unloads the model from RAM and removes it only when Super-Ai installed it for that task.
 
 Make sure Ollama is running locally before starting a natural-language browser goal.
 
@@ -77,7 +68,10 @@ Super-Ai will repeatedly:
 3. validate the action;
 4. execute it through Playwright;
 5. inspect again with fresh refs;
-6. continue until the planner supplies grounded completion evidence.
+6. when accessibility context is insufficient, request a screenshot and feed that image to the next planning cycle;
+7. continue until deterministic evidence proves the requested post-condition.
+
+This follows the current Playwright guidance to refresh refs after page changes, use find for cheaper targeted lookup, and use screenshots selectively when visual context is needed. \uE200cite\uE202turn931725search0\uE202turn931725search2\uE201
 
 ## 5. Consequential actions
 
