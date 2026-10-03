@@ -270,18 +270,24 @@ class TaskModelManager:
         remove_after = self.ephemeral if ephemeral is None else bool(ephemeral)
         with self._lock:
             installed = self.is_installed(selection.model)
-            self.ensure_installed(selection)
+            if not installed:
+                self.ensure_installed(selection)
             try:
                 yield selection
             finally:
-                if remove_after:
+                # Always unload the model from RAM. Only delete artifacts that
+                # were absent before this task started.
+                unload_error: Exception | None = None
+                try:
                     self.unload(selection.model)
-                    # Only remove an artifact that Super-Ai installed itself.
-                    if not installed:
-                        self.remove(selection.model)
-                else:
-                    # Still unload the runner to return memory to the host.
-                    self.unload(selection.model)
+                except Exception as exc:
+                    unload_error = exc
+                if remove_after and not installed:
+                    self.remove(selection.model)
+                if unload_error is not None:
+                    raise ModelManagerError(
+                        f"could not unload model {selection.model}"
+                    ) from unload_error
 
     def is_installed(self, model: str) -> bool:
         if not model:
