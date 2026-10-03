@@ -128,6 +128,8 @@ class Brain:
                     step.description,
                     max_ram_mb=task.constraints.max_ram_mb,
                     max_disk_mb=task.constraints.max_disk_mb,
+                    reserved_ram_mb=route.entry.spec.resource.ram_hard_mb,
+                    reserved_disk_mb=route.entry.spec.resource.disk_mb,
                 ) as selection:
                     step_context = dict(context)
                     step_context["__model_name"] = selection.model
