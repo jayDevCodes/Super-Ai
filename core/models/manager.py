@@ -157,6 +157,7 @@ class TaskModelManager:
         goal: str,
         *,
         max_ram_mb: int | None = None,
+        max_disk_mb: int | None = None,
         requires_vision: bool = False,
         escalate: bool = False,
     ) -> ModelSelection:
@@ -166,6 +167,11 @@ class TaskModelManager:
         budget_ram = self.max_model_ram_mb if max_ram_mb is None else max_ram_mb
         if budget_ram <= 0:
             raise ValueError("max_ram_mb must be > 0")
+        budget_disk = (
+            self.max_model_disk_mb if max_disk_mb is None else max_disk_mb
+        )
+        if budget_disk <= 0:
+            raise ValueError("max_disk_mb must be > 0")
 
         tokens = _TOKEN_RE.findall(goal.lower())
         token_set = set(tokens)
@@ -204,7 +210,7 @@ class TaskModelManager:
             spec
             for spec in self.catalog
             if spec.estimated_ram_mb <= budget_ram
-            and spec.disk_mb <= self.max_model_disk_mb
+            and spec.disk_mb <= budget_disk
             and (not visual or spec.supports_vision)
         ]
         if not candidates:
@@ -226,7 +232,7 @@ class TaskModelManager:
             spec=selected,
             reason=(
                 f"browser={browser}, visual={visual}, complex={complex_task}, "
-                f"ram_budget={budget_ram}MB"
+                f"ram_budget={budget_ram}MB, disk_budget={budget_disk}MB"
             ),
         )
 
@@ -236,6 +242,7 @@ class TaskModelManager:
         goal: str,
         *,
         max_ram_mb: int | None = None,
+        max_disk_mb: int | None = None,
         requires_vision: bool = False,
         escalate: bool = False,
         ephemeral: bool | None = None,
@@ -243,6 +250,7 @@ class TaskModelManager:
         selection = self.select(
             goal,
             max_ram_mb=max_ram_mb,
+            max_disk_mb=max_disk_mb,
             requires_vision=requires_vision,
             escalate=escalate,
         )
