@@ -76,6 +76,7 @@ class EmergencyAuthority:
         self,
         owner_authorization: OwnerAuthorization,
         state_path: Path = Path(".super-ai/security/emergency_state.json"),
+        audit_store: HashChainAuditStore | None = None,
     ) -> None:
         if not isinstance(owner_authorization, OwnerAuthorization):
             raise TypeError("owner_authorization must be an OwnerAuthorization")
