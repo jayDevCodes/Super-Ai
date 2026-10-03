@@ -80,6 +80,34 @@ class BrainOwnerDecisionTests(unittest.TestCase):
             self.assertNotIn("owner_override_code", runner.contexts[0])
             self.assertNotIn(secret, str(runner.contexts[0]))
 
+    def test_owner_code_can_resolve_confirmation_state(self) -> None:
+        with TemporaryDirectory() as directory:
+            auth = OwnerAuthorization(Path(directory) / "owner_auth.json")
+            secret = "a-strong-owner-code-2026!"
+            auth.configure(secret)
+
+            registry = CapabilityRegistry([browser_entry()])
+            policy = CapabilityPolicyEngine(
+                CapabilityPolicy(
+                    allowed_permissions=frozenset({"browser", "network"})
+                )
+            )
+            runner = Runner()
+            brain = Brain(
+                router=CapabilityRouter(registry, policy),
+                runner=runner,
+                owner_authorization=auth,
+            )
+            task = Task(
+                task_id="confirm-1",
+                goal="open the approved page",
+                steps=(
+                    TaskStep("browse", "browser.agent", "open the approved page"),
+                ),
+            )
+
+            self.assertTrue(brain.execute(task).succeeded)
+
 
 if __name__ == "__main__":
     unittest.main()
