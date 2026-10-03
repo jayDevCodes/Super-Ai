@@ -281,6 +281,8 @@ class BrowserPlannerTests(unittest.TestCase):
                 ),
             )
             self.assertTrue(plan.done)
+            self.assertEqual(captured["payload"]["keep_alive"], "5m")
+            self.assertEqual(captured["payload"]["options"]["num_predict"], 384)
             self.assertEqual(
                 captured["payload"]["messages"][1]["images"][0],
                 "ZmFrZS1wbmctYnl0ZXM=",
