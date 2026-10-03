@@ -60,6 +60,7 @@ class CapabilityRouter:
         request: RouteRequest,
         *,
         include_confirmation: bool = False,
+        owner_override: bool = False,
     ) -> tuple[RouteCandidate, ...]:
         request.validate()
         candidates: list[RouteCandidate] = []
@@ -77,6 +78,27 @@ class CapabilityRouter:
                 request.task_constraints,
             )
             if decision.state is PolicyDecisionState.DENY:
+                if not owner_override:
+                    continue
+                score, reasons = self._score(
+                    entry,
+                    request,
+                    requested_tokens=requested_tokens,
+                )
+                if score <= 0 and request.capability_id is None:
+                    continue
+                candidates.append(
+                    RouteCandidate(
+                        entry=entry,
+                        score=score,
+                        reasons=tuple(reasons),
+                        policy_state=PolicyDecisionState.OWNER_OVERRIDE,
+                        policy_reasons=(
+                            *decision.reasons,
+                            "owner authorization explicitly selected this policy exception",
+                        ),
+                    )
+                )
                 continue
             if (
                 decision.state is PolicyDecisionState.CONFIRM
@@ -119,10 +141,12 @@ class CapabilityRouter:
         request: RouteRequest,
         *,
         include_confirmation: bool = False,
+        owner_override: bool = False,
     ) -> RouteCandidate:
         candidates = self.route(
             request,
             include_confirmation=include_confirmation,
+            owner_override=owner_override,
         )
         return candidates[0]
 

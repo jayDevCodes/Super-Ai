@@ -3,3 +3,6 @@
 .super-ai/browser/workspace/
 .playwright/
 .playwright-cli/
+.super-ai/security/owner_auth.json
+.super-ai/security/emergency_state.json
+.super-ai/security/emergency_audit.jsonl

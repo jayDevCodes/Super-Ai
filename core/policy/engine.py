@@ -10,6 +10,7 @@ class PolicyDecisionState(str, Enum):
     ALLOW = "allow"
     DENY = "deny"
     CONFIRM = "confirm"
+    OWNER_OVERRIDE = "owner_override"
 
 
 @dataclass(frozen=True, slots=True)

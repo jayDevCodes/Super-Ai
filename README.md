@@ -62,3 +62,20 @@ python3 scripts/run_browser_goal.py \
 The Brain/task model manager selects a model from a small local catalog using task type plus RAM/disk budgets. For browser work it prefers the smallest viable Qwen3.5 model, escalates to the 4B variant for complex/visual goals, reuses a model already present on disk, otherwise downloads it temporarily, unloads it from RAM after the task, and deletes only models that Super-Ai downloaded for that task.
 
 The controller uses one browser action per planning cycle, obtains fresh accessibility refs after each action, and can request a selective screenshot for visual context rather than sending screenshots on every cycle. Consequential external effects still stop for confirmation.
+
+
+## Owner final-decision authorization
+
+Super-Ai has a local owner-only policy exception path for cases where the current task conflicts with an existing policy and the human intentionally wants to make the final decision.
+
+Configure it once:
+
+```bash
+python3 scripts/setup_owner_auth.py
+```
+
+The setup tool accepts the code without echoing it. Only a salted scrypt verifier is stored under `.super-ai/security/owner_auth.json`; the code itself is not stored or sent to models. The verifier follows current password-storage guidance to use a slow, memory-hard password KDF rather than plain SHA-256. citeturn425694search0turn425694search1
+
+During a policy conflict, application code can call `Brain.execute(..., owner_override_code=...)`. The code is checked against the local verifier, converted into a short-lived task-scoped grant, consumed once, and recorded in the append-only audit hash chain with task/capability/policy evidence. The code never enters model context.
+
+The owner decision can override the policy-engine decision for that specific task, but primitive safety boundaries such as secret handling, path traversal protection, arbitrary planner code execution, and explicit browser origin fencing remain enforced in the deterministic execution layer.
