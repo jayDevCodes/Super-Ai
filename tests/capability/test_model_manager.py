@@ -29,6 +29,16 @@ class FakeModelManager(TaskModelManager):
 
 
 class ModelManagerTests(unittest.TestCase):
+    def test_tool_task_prefers_functiongemma_router(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Choose the best tool action for this API request",
+            max_ram_mb=800,
+            max_disk_mb=600,
+        )
+        self.assertEqual(selection.model, "functiongemma:270m")
+        self.assertTrue(selection.spec.supports_tools)
+
     def test_micro_task_prefers_smallest_catalog_model(self) -> None:
         manager = TaskModelManager()
         selection = manager.select(
@@ -179,6 +189,14 @@ class ModelManagerTests(unittest.TestCase):
             ],
         )
         self.assertIn(selection.model, manager.installed)
+
+    def test_keep_alive_defaults_to_warm_window(self) -> None:
+        manager = TaskModelManager()
+        self.assertEqual(manager.keep_alive, "5m")
+
+    def test_keep_alive_can_be_disabled(self) -> None:
+        manager = TaskModelManager(keep_alive="0")
+        self.assertEqual(manager.keep_alive, "0")
 
     def test_explicit_unknown_model_is_rejected(self) -> None:
         manager = TaskModelManager()
