@@ -211,3 +211,17 @@ Scope:
 Validation:
 - local full suite passed: 283 tests, 1 skipped;
 - PR #57 CI passed on Python 3.11, 3.12 and 3.13.
+
+## 2026-10-03 — autonomous step 138 — Document syscall posture
+
+Branch/PR: `codex/document-syscall-posture` / PR #58.
+Merge commit: 4b589ec.
+
+Scope:
+- documented restricted syscall defaults and deterministic runtime intent;
+- separated control-plane validation from runtime/kernel enforcement;
+- documented fail-closed behavior when an adapter cannot honor the requested posture.
+
+Validation:
+- local full suite passed: 283 tests, 1 skipped;
+- PR #58 CI passed on Python 3.11, 3.12 and 3.13.
