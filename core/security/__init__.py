@@ -8,7 +8,7 @@ from .posture import (
     SecretBoundary, SecretMode, SecurityAuditReport, SecurityAuditor, SecurityProfile,
     SecurityPostureError, SyscallMode,
 )
-from .quotas import QuotaError, QuotaLedger, ResourceQuota
+from .quotas import QuotaError, QuotaLedger, QuotaReservation, ResourceQuota
 from .race import FenceError, FenceToken, OwnershipFence
 from .secrets import (
     SecretBoundaryError,
@@ -38,6 +38,7 @@ __all__ = [
     "ProcessQuota",
     "QuotaError",
     "QuotaLedger",
+    "QuotaReservation",
     "ResourceQuota",
     "SecretBoundary",
     "SecretBoundaryError",
