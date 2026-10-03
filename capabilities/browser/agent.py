@@ -15,15 +15,23 @@ BrowserActionKind = Literal[
     "snapshot",
     "find_text",
     "click",
+    "dblclick",
+    "hover",
     "fill",
     "type",
     "select",
     "check",
     "uncheck",
     "press",
+    "dialog_accept",
+    "dialog_dismiss",
     "scroll",
     "wait",
+    "reload",
+    "go_back",
+    "go_forward",
     "screenshot",
+    "upload",
     "extract_text",
 ]
 
@@ -46,15 +54,23 @@ class BrowserAction:
             "snapshot",
             "find_text",
             "click",
+            "dblclick",
+            "hover",
             "fill",
             "type",
             "select",
             "check",
             "uncheck",
             "press",
+            "dialog_accept",
+            "dialog_dismiss",
             "scroll",
             "wait",
+            "reload",
+            "go_back",
+            "go_forward",
             "screenshot",
+            "upload",
             "extract_text",
         }
         if self.kind not in supported:
@@ -62,7 +78,7 @@ class BrowserAction:
         if self.kind == "goto":
             if not self.url:
                 raise ValueError("goto action requires url")
-        elif self.kind in {"click", "check", "uncheck"}:
+        elif self.kind in {"click", "dblclick", "hover", "check", "uncheck"}:
             if not self.target:
                 raise ValueError(f"{self.kind} action requires target")
         elif self.kind == "fill":
@@ -82,6 +98,12 @@ class BrowserAction:
             raise ValueError("type action requires value")
         elif self.kind == "press" and not self.value:
             raise ValueError("press action requires key in value")
+        elif self.kind == "dialog_accept":
+            if self.value is not None and not self.value.strip():
+                raise ValueError("dialog_accept prompt must be non-empty when provided")
+        elif self.kind in {"dialog_dismiss", "reload", "go_back", "go_forward"}:
+            if any(value is not None for value in (self.target, self.value, self.url, self.amount, self.path)):
+                raise ValueError(f"{self.kind} action takes no arguments")
         elif self.kind == "scroll":
             if self.value not in {"up", "down", "left", "right"}:
                 raise ValueError("scroll value must be up/down/left/right")
@@ -92,6 +114,9 @@ class BrowserAction:
                 raise ValueError("wait action requires a positive amount")
         elif self.kind == "screenshot" and not self.path:
             raise ValueError("screenshot action requires path")
+        elif self.kind == "upload":
+            if not self.path:
+                raise ValueError("upload action requires a workspace-relative path")
 
         if self.target is not None and len(self.target) > 4096:
             raise ValueError("target is too long")
@@ -307,6 +332,14 @@ class BrowserAgent:
             assert action.target is not None
             return self._transport.click(action.target)
 
+        if action.kind == "dblclick":
+            assert action.target is not None
+            return self._transport.dblclick(action.target)
+
+        if action.kind == "hover":
+            assert action.target is not None
+            return self._transport.hover(action.target)
+
         if action.kind == "fill":
             assert action.target is not None and action.value is not None
             return self._transport.fill(action.target, action.value)
@@ -331,6 +364,12 @@ class BrowserAgent:
             assert action.value is not None
             return self._transport.press(action.value)
 
+        if action.kind == "dialog_accept":
+            return self._transport.dialog_accept(action.value)
+
+        if action.kind == "dialog_dismiss":
+            return self._transport.dialog_dismiss()
+
         if action.kind == "scroll":
             assert action.value is not None and action.amount is not None
             return self._transport.scroll(action.value, action.amount)
@@ -339,11 +378,27 @@ class BrowserAgent:
             assert action.amount is not None
             return self._transport.wait(action.amount)
 
+        if action.kind == "reload":
+            return self._transport.reload()
+
+        if action.kind == "go_back":
+            return self._transport.go_back()
+
+        if action.kind == "go_forward":
+            return self._transport.go_forward()
+
         if action.kind == "screenshot":
             assert action.path is not None
             target = _safe_workspace_path(workspace, action.path)
             target.parent.mkdir(parents=True, exist_ok=True)
             return self._transport.screenshot(target)
+
+        if action.kind == "upload":
+            assert action.path is not None
+            target = _safe_workspace_path(workspace, action.path)
+            if not target.is_file():
+                raise BrowserAgentError("upload path must be an existing workspace file")
+            return self._transport.upload(target)
 
         if action.kind == "extract_text":
             return self._transport.eval(
