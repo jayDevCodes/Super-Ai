@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d0f13" />
+    <title>Super-Ai · Workbench</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Task navigation">
+        <div class="sidebar-top">
+          <a class="wordmark" href="/" aria-label="Super-Ai home"><span class="spark">✦</span> super-ai</a>
+          <button class="icon-button mobile-menu" id="mobile-menu" aria-label="Toggle navigation">☰</button>
+        </div>
+        <button class="new-task" id="new-task" type="button"><span>＋</span> New task <kbd>⌘ K</kbd></button>
+        <nav class="nav-groups">
+          <p class="nav-label">Workspace</p>
+          <button class="nav-item active" type="button" data-view="chat"><span class="nav-icon">◈</span> Workbench</button>
+          <button class="nav-item" type="button" data-view="models"><span class="nav-icon">⌘</span> Models <span class="nav-count">10</span></button>
+          <button class="nav-item" type="button" data-view="runs"><span class="nav-icon">◷</span> Run history</button>
+          <p class="nav-label spaced">Projects</p>
+          <button class="project-item" type="button"><span class="project-dot green"></span> Browser agent</button>
+          <button class="project-item" type="button"><span class="project-dot violet"></span> Model research</button>
+          <button class="project-item" type="button"><span class="project-dot amber"></span> 1,000 task map</button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="system-chip"><span class="pulse-dot"></span><div><strong>Local runtime</strong><small>Guarded · ready</small></div><span class="chevron">⌄</span></div>
+          <div class="profile-row"><span class="avatar">J</span><span>jaydev</span><button class="icon-button" aria-label="More account options">•••</button></div>
+        </div>
+      </aside>
+
+      <main class="main-column">
+        <header class="topbar">
+          <div class="breadcrumbs"><span class="crumb-muted">Super-Ai</span><span>/</span><strong id="workspace-title">Workbench</strong></div>
+          <div class="topbar-actions"><span class="connection"><i></i> Local</span><button class="icon-button" aria-label="Search">⌕</button><button class="icon-button" aria-label="Settings">⚙</button></div>
+        </header>
+
+        <section class="conversation" id="conversation" aria-live="polite">
+          <div class="welcome-block" id="welcome-block">
+            <div class="welcome-mark">✦</div>
+            <h1>Build with Super-Ai</h1>
+            <p>Delegate a task to the local control plane. It decomposes the work, picks the smallest capable model, runs guarded tools, and verifies the result.</p>
+            <div class="starter-grid">
+              <button class="starter-card" type="button" data-goal="Inspect the public Example Domain page and summarize its visible content."><span class="starter-icon">◉</span><span><strong>Inspect a webpage</strong><small>Read-only browser task</small></span><b>↗</b></button>
+              <button class="starter-card" type="button" data-goal="Classify this short message into one label: urgent, normal, or spam."><span class="starter-icon">≡</span><span><strong>Classify text</strong><small>Compact local model</small></span><b>↗</b></button>
+              <button class="starter-card" type="button" data-goal="Analyze a small code bug and suggest a verified repair."><span class="starter-icon">&lt;/&gt;</span><span><strong>Review code</strong><small>Code specialist route</small></span><b>↗</b></button>
+            </div>
+          </div>
+          <div class="message-list" id="message-list"></div>
+        </section>
+
+        <section class="composer-wrap" aria-label="Task composer">
+          <div class="composer">
+            <textarea id="task-goal" rows="3" maxlength="1000" placeholder="Describe what you want Super-Ai to do…"></textarea>
+            <div class="composer-toolbar">
+              <div class="composer-tools"><button class="tool-button" type="button" aria-label="Attach a file">＋</button><span class="composer-hint">Tasks are decomposed and verified automatically</span></div>
+              <div class="composer-actions"><span class="target-pill" id="target-pill">example.com</span><button class="send-button" id="run-task" type="button" aria-label="Run task">↑</button></div>
+            </div>
+          </div>
+          <div class="composer-meta"><span>Super-Ai can make mistakes. Review important outputs.</span><button type="button" id="clear-task">Clear</button></div>
+        </section>
+      </main>
+
+      <aside class="inspector" aria-label="Live execution inspector">
+        <div class="inspector-header"><div><p class="eyebrow">LIVE INSPECTOR</p><h2>Task context</h2></div><span class="status-dot" id="status-dot"></span></div>
+        <div class="inspector-section task-status"><div class="status-heading"><span id="run-state">Ready for a task</span><span class="status-badge" id="status-badge">IDLE</span></div><p id="run-detail">The guarded runtime is waiting for your next instruction.</p></div>
+        <div class="inspector-section"><div class="section-title"><span>Pipeline</span><span class="muted">6 stages</span></div><ol class="pipeline" id="pipeline">
+          <li class="pipeline-step active"><span class="step-icon">✓</span><div><strong>Brain</strong><small>Plan task DAG</small></div></li>
+          <li class="pipeline-step"><span class="step-icon">2</span><div><strong>Policy</strong><small>Check permissions</small></div></li>
+          <li class="pipeline-step"><span class="step-icon">3</span><div><strong>Admission</strong><small>Reserve resources</small></div></li>
+          <li class="pipeline-step"><span class="step-icon">4</span><div><strong>Runtime</strong><small>Execute safely</small></div></li>
+          <li class="pipeline-step"><span class="step-icon">5</span><div><strong>Verify</strong><small>Prove outcome</small></div></li>
+          <li class="pipeline-step"><span class="step-icon">6</span><div><strong>Audit</strong><small>Record evidence</small></div></li>
+        </ol></div>
+        <div class="inspector-section model-card"><div class="section-title"><span>Selected worker</span><span class="model-state">AUTO</span></div><div class="model-row"><div class="model-logo">✦</div><div><strong id="model-name">Awaiting route</strong><small id="model-reason">Smallest capable model</small></div></div><div class="resource-row"><span>RAM budget</span><strong id="ram-value">—</strong></div><div class="meter"><i id="ram-meter"></i></div><div class="resource-row"><span>Network</span><strong class="safe-text">Denied by default</strong></div></div>
+        <div class="inspector-section activity-card"><div class="section-title"><span>Activity</span><span class="muted">Live</span></div><ul id="activity"><li><i></i><span>Dashboard initialized</span><time>now</time></li><li><i></i><span>Browser origin fence ready</span><time>ready</time></li></ul></div>
+        <div class="inspector-footer"><span class="shield">◇</span><span>Least privilege enabled</span></div>
+      </aside>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
