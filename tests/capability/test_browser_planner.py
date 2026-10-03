@@ -224,6 +224,7 @@ class BrowserPlannerTests(unittest.TestCase):
         obs = BrowserObservation(
             url="https://example.com",
             snapshot="x" * 10,
+            allowed_origins=("https://example.com",),
             max_snapshot_chars=5,
         )
         self.assertIn("TRUNCATED", obs.bounded_snapshot)
