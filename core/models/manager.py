@@ -357,7 +357,7 @@ class TaskModelManager:
         return ModelSelection(
             spec=selected,
             reason=(
-                f"browser={browser}, visual={visual}, complex={complex_task}, "
+                f"browser={browser}, visual={visual}, tool_task={tool_task}, complex={complex_task}, "
                 f"ram_budget={model_ram_budget}MB, disk_budget={model_disk_budget}MB, "
                 f"reserved_ram={reserved_ram_mb}MB, reserved_disk={reserved_disk_mb}MB"
             ),
