@@ -163,7 +163,13 @@ class PlaywrightCliTransport:
         return self._mutate("press", key)
 
     def scroll(self, direction: str, amount: int) -> PlaywrightCliResult:
-        return self._mutate("scroll", direction, str(amount))
+        if direction not in {"up", "down", "left", "right"}:
+            raise ValueError("scroll direction must be up/down/left/right")
+        if amount <= 0:
+            raise ValueError("scroll amount must be > 0")
+        dx = amount if direction == "right" else -amount if direction == "left" else 0
+        dy = amount if direction == "down" else -amount if direction == "up" else 0
+        return self._mutate("mousewheel", str(dx), str(dy))
 
     def find_text(self, text: str) -> PlaywrightCliResult:
         return self._mutate("find", text)
@@ -176,7 +182,8 @@ class PlaywrightCliTransport:
     def screenshot(self, path: Path | None = None) -> PlaywrightCliResult:
         if path is None:
             return self._mutate("screenshot")
-        return self._mutate("screenshot", str(Path(path).expanduser().resolve()))
+        filename = Path(path).expanduser().resolve()
+        return self._mutate("screenshot", f"--filename={filename}")
 
     def eval(self, expression: str) -> PlaywrightCliResult:
         if not expression or not expression.strip():
