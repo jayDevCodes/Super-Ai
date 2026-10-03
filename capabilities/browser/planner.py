@@ -5,6 +5,7 @@ import json
 import os
 from typing import Mapping
 from urllib.error import URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .agent import BrowserAction, BrowserTask
@@ -235,6 +236,17 @@ Return ONLY schema-valid JSON."""
         ).rstrip("/")
         if not self.model or self.model.strip() != self.model:
             raise ValueError("model must be a non-empty trimmed string")
+        parsed_base = urlparse(self.base_url)
+        if parsed_base.scheme not in {"http", "https"} or not parsed_base.hostname:
+            raise ValueError("Ollama URL must be an HTTP(S) URL with a hostname")
+        if parsed_base.username or parsed_base.password:
+            raise ValueError("Ollama URL must not contain embedded credentials")
+        is_local = parsed_base.hostname.lower() in {"127.0.0.1", "localhost", "::1"}
+        if not is_local and os.getenv("SUPER_AI_ALLOW_REMOTE_PLANNER") != "1":
+            raise ValueError(
+                "remote planner endpoints are disabled; set "
+                "SUPER_AI_ALLOW_REMOTE_PLANNER=1 only when intentionally using one"
+            )
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
         if not 0 <= temperature <= 2:
