@@ -18,18 +18,23 @@ Playwright's coding-agent CLI returns an accessibility snapshot after commands a
 
 ## Planner boundary
 
-The default implementation is `OllamaBrowserIntentPlanner`.
+The default implementation is `OllamaBrowserIntentPlanner`, but the Brain may inject a task-selected model.
 
 - Local endpoint by default: `http://127.0.0.1:11434`.
-- Default model: `qwen3.5:4b-q4_K_M`, configurable via `SUPER_AI_BROWSER_MODEL`.
+- Task model selection is handled by `core.models.TaskModelManager`.
+- The managed catalog prefers the smallest viable Qwen3.5 model under the task's RAM/disk budget, accounting for the browser capability footprint.
+- An already-installed model is reused without a redundant pull; a model downloaded for an ephemeral task is unloaded from RAM and removed after the task.
+- `SUPER_AI_BROWSER_MODEL` / explicit model selection can override automatic selection when the requested model is in the managed catalog.
 - Structured JSON output is enforced with a JSON Schema.
-- Thinking is disabled for the planner to reduce latency; the planning task is short and tool-facing.
+- Thinking is disabled for the short tool-planning step to reduce latency.
 - Page content is explicitly treated as untrusted data to reduce prompt-injection risk.
 - The model never receives a credential store or host environment.
 
 ## Verification
 
 The model may provide text and URL post-conditions, but the controller verifies them deterministically against the observed page and current URL. A model completion claim without grounded evidence is rejected.
+
+For visual-only UI state, the planner can request one screenshot action; the next planning cycle receives that screenshot as multimodal input while still using the fresh accessibility tree as the interaction source.
 
 ## Consequential actions
 
@@ -41,7 +46,7 @@ Authentication remains outside the planner. The user logs into a dedicated persi
 
 ## Resource rationale
 
-Ollama currently publishes Qwen3.5 in small 0.8B/2B/4B variants; the 4B Q4_K_M artifact is listed at about 3.4 GB. The model is loaded only when browser planning is needed. A lighter 2B model can be selected with `SUPER_AI_BROWSER_MODEL` for tighter 8 GB memory budgets.
+Current Ollama Qwen3.5 tags include 0.8B, 2B Q4_K_M (~1.9 GB), and 4B Q4_K_M (~3.4 GB) text+image variants. The task model manager chooses among these according to task type and resource budgets, rather than keeping a large model permanently resident. This makes the browser path compatible with the repository's constrained-host design while still allowing a larger model when the task budget leaves sufficient headroom.
 
 ## Non-goals
 
