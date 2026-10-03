@@ -284,8 +284,8 @@ def _verify(
 
 
 def _goal_requires_confirmation(goal: str) -> bool:
-    words = re.findall(r"[a-z0-9]+", goal.lower())
-    risky = {
+    normalized = " ".join(re.findall(r"[a-z0-9]+", goal.lower()))
+    risky_single_words = {
         "submit",
         "send",
         "delete",
@@ -298,12 +298,22 @@ def _goal_requires_confirmation(goal: str) -> bool:
         "publish",
         "post",
         "transfer",
-        "confirm",
         "cancel",
         "unsubscribe",
         "order",
     }
-    return bool(risky.intersection(words))
+    if any(re.search(rf"\\b{re.escape(word)}\\b", normalized) for word in risky_single_words):
+        return True
+
+    # "confirm" is ambiguous: asking the agent to confirm observed state is safe,
+    # while confirming an external transaction/submission is consequential.
+    return bool(
+        re.search(
+            r"\\bconfirm(?:ation)?\\s+(?:the\\s+)?"
+            r"(?:purchase|payment|booking|order|transfer|submission|application|send|delete|cancellation)",
+            normalized,
+        )
+    )
 
 
 def _safe_history_line(action: BrowserAction, output: str) -> str:
