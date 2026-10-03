@@ -5,7 +5,8 @@ from typing import Mapping, Protocol
 
 from core.contracts import Task, TaskStep
 from core.planner import StepExecution, TaskExecutionResult, TaskExecutor
-from core.router import CapabilityRouter, RouteCandidate, RouteRequest
+from core.router import CapabilityRouter, RouteCandidate, RouteRequest, RoutingError
+from core.security import OwnerAuthorization, OwnerAuthorizationError, OwnerOverrideGrant
 from core.policy import PolicyDecisionState
 from core.audit import HashChainAuditStore
 from core.observability import TraceContext
@@ -51,18 +52,21 @@ class Brain:
         max_workers: int = 4,
         audit_store: HashChainAuditStore | None = None,
         model_manager: TaskModelManager | None = None,
+        owner_authorization: OwnerAuthorization | None = None,
     ) -> None:
         self._router = router
         self._runner = runner
         self._max_workers = max_workers
         self._audit = audit_store
         self._model_manager = model_manager
+        self._owner_authorization = owner_authorization
 
     def plan(
         self,
         task: Task,
         *,
         trace_context: TraceContext | None = None,
+        owner_override: OwnerOverrideGrant | None = None,
     ) -> BrainPlan:
         task.validate()
         trace = trace_context or TraceContext.new_root()
@@ -77,6 +81,7 @@ class Brain:
                     task_constraints=task.constraints,
                 ),
                 include_confirmation=True,
+                owner_override=owner_override is not None,
             )
             if route.policy_state is PolicyDecisionState.DENY:
                 raise BrainError(
