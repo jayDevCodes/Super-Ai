@@ -27,6 +27,21 @@ The project uses the standard library for the new control-plane modules. The exi
 
 See docs/autonomy/ for the autonomous engineering protocol and docs/architecture/ for system contracts.
 
+## Codex-style local workbench
+
+The local UI is a conversation-first workbench with a task rail, composer,
+animated guarded pipeline, model/resource inspector and live activity feed.
+Start it with:
+
+```bash
+python3 ui/server.py
+```
+
+Then open <http://127.0.0.1:8787/>. The starter tasks and composer use the
+read-only browser endpoint; the server returns the resource-aware catalog route
+used by the inspector. The UI does not bypass policy, origin fencing or
+confirmation gates.
+
 
 ## Browser task capability
 
