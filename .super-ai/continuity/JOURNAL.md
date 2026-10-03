@@ -239,3 +239,17 @@ Scope:
 Validation:
 - local full suite passed: 284 tests, 1 skipped;
 - PR #59 CI passed on Python 3.11, 3.12 and 3.13.
+
+## 2026-10-03 — autonomous step 140 — Document network policy
+
+Branch/PR: `codex/document-network-policy` / PR #60.
+Merge commit: 0569ef7.
+
+Scope:
+- documented HTTPS hostname and explicit CIDR allowlist behavior;
+- documented browser origin fencing and fail-closed runtime enforcement;
+- added regression coverage for credential-shaped URLs, invalid hosts and CIDRs.
+
+Validation:
+- local full suite passed: 285 tests, 1 skipped;
+- PR #60 CI passed on Python 3.11, 3.12 and 3.13.

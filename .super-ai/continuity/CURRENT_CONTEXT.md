@@ -1,7 +1,7 @@
 # Current Super-Ai Context Snapshot
 
-Snapshot point: main @ 1b08360 (filesystem-isolation documentation merge)
-Autonomous checkpoint: steps 32–139 complete; next step 140 — Document network policy.
+Snapshot point: main @ 0569ef7 (network-policy documentation merge)
+Autonomous checkpoint: steps 32–140 complete; next step 141 — Instrument secret boundaries.
 Main CI status at the preceding merge checkpoint was green (GitHub Actions run 171); step 132 branch CI run 176 was green on Python 3.11, 3.12, and 3.13.
 
 ## Mission
@@ -56,6 +56,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - 137: capability-drop documentation with explicit denial semantics and default-zero capability tests.
 - 138: syscall-posture documentation distinguishing control-plane intent from runtime enforcement and requiring fail-closed adapters.
 - 139: filesystem-isolation documentation with read-only root/write-root boundaries and traversal rejection tests.
+- 140: network-policy documentation with HTTPS/CIDR allowlist semantics, fail-closed adapter requirements, and regression tests.
 
 ## Key merged commits
 - Step 11: f5afa8339fbe11fa73c7b0829d9c59e2b31fa723
@@ -113,7 +114,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - New unit tests cover control-plane configuration/specs, supply-chain evidence/policy/sync/verification, security posture/boundaries/evidence, cleanup fencing, admission composition, benchmarks, and telemetry.
 
 ## Next-step intent
-Step 140 — Document network policy. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing network posture contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
+Step 141 — Instrument secret boundaries. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing secret scanner/evidence contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
 
 ## Never forget
 Do not rewrite history to make the project look cleaner. Preserve prior decisions and failures as learning signals. The next agent should build on the existing system instead of starting over.
