@@ -313,7 +313,7 @@ Return ONLY schema-valid JSON."""
             plan = _plan_from_json(raw)
             plan.validate(max_actions=1)
             return plan
-        except (TypeError, ValueError, BrowserPlannerError) as exc:
+        except (KeyError, TypeError, ValueError, BrowserPlannerError) as exc:
             raise BrowserPlannerError(f"invalid browser plan: {exc}") from exc
 
     def _post_json(self, path: str, payload: Mapping[str, object]) -> Mapping[str, object]:
