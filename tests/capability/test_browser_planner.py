@@ -246,6 +246,46 @@ class BrowserPlannerTests(unittest.TestCase):
             self.assertIsNotNone(encoded)
             self.assertGreater(len(encoded), 0)
 
+    def test_ollama_plan_includes_selective_screenshot(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "state.png"
+            path.write_bytes(b"fake-png-bytes")
+            planner = OllamaBrowserIntentPlanner()
+            captured = {}
+
+            def fake_post(endpoint, payload):
+                captured["payload"] = payload
+                return {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "actions": [],
+                                "done": True,
+                                "summary": "Observed the state",
+                                "verification": {"text": ["Done"], "url_contains": []},
+                                "needs_confirmation": False,
+                                "confirmation_reason": "",
+                            }
+                        )
+                    }
+                }
+
+            planner._post_json = fake_post
+            plan = planner.plan(
+                "Confirm the page is done",
+                BrowserObservation(
+                    url="https://example.com",
+                    snapshot="Done",
+                    allowed_origins=("https://example.com",),
+                    screenshot_path=path,
+                ),
+            )
+            self.assertTrue(plan.done)
+            self.assertEqual(
+                captured["payload"]["messages"][1]["images"][0],
+                "ZmFrZS1wbmctYnl0ZXM=",
+            )
+
     def test_remote_planner_requires_explicit_opt_in(self):
         with self.assertRaises(ValueError):
             OllamaBrowserIntentPlanner(base_url="https://planner.example.com")
