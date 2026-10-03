@@ -18,6 +18,7 @@ class BrowserPlannerError(RuntimeError):
 class BrowserObservation:
     url: str
     snapshot: str
+    allowed_origins: tuple[str, ...] = field(default_factory=tuple)
     max_snapshot_chars: int = 60_000
 
     def validate(self) -> None:
@@ -27,6 +28,8 @@ class BrowserObservation:
             raise TypeError("observation snapshot must be text")
         if self.max_snapshot_chars <= 0:
             raise ValueError("max_snapshot_chars must be > 0")
+        if not self.allowed_origins:
+            raise ValueError("allowed_origins must be explicit")
 
     @property
     def bounded_snapshot(self) -> str:
@@ -259,6 +262,8 @@ Return ONLY schema-valid JSON."""
             f"{goal.strip()}\n\n"
             "CURRENT URL:\n"
             f"{observation.url}\n\n"
+            "ALLOWED ORIGINS:\n"
+            f"{json.dumps(observation.allowed_origins, ensure_ascii=False)}\n\n"
             "CURRENT ACCESSIBILITY SNAPSHOT:\n"
             f"{observation.bounded_snapshot}\n\n"
             "RECENT NON-SENSITIVE STEP SUMMARIES:\n"
