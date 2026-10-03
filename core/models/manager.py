@@ -31,6 +31,7 @@ class ModelSpec:
     estimated_ram_mb: int
     supports_vision: bool
     task_tags: frozenset[str]
+    supports_tools: bool = False
     context_window: int = 8192
     license_name: str = "unknown"
     source_url: str = ""
@@ -73,6 +74,18 @@ DEFAULT_MODEL_CATALOG: tuple[ModelSpec, ...] = (
         context_window=32_000,
         license_name="gemma",
         source_url="https://ollama.com/library/gemma3:270m",
+    ),
+    ModelSpec(
+        name="functiongemma:270m",
+        family="functiongemma",
+        disk_mb=301,
+        estimated_ram_mb=600,
+        supports_vision=False,
+        task_tags=frozenset({"tool", "tools", "function", "micro", "simple"}),
+        supports_tools=True,
+        context_window=32_000,
+        license_name="gemma",
+        source_url="https://ollama.com/library/functiongemma:270m",
     ),
     ModelSpec(
         name="smollm2:360m",
@@ -189,6 +202,7 @@ class TaskModelManager:
         max_model_disk_mb: int = 6000,
         install_timeout_seconds: float = 1800.0,
         ephemeral: bool = True,
+        keep_alive: str | None = None,
     ) -> None:
         self.ollama_executable = (
             ollama_executable
@@ -219,6 +233,16 @@ class TaskModelManager:
         if install_timeout_seconds <= 0:
             raise ValueError("install_timeout_seconds must be > 0")
 
+        configured_keep_alive = (
+            keep_alive
+            or os.getenv("SUPER_AI_OLLAMA_KEEP_ALIVE")
+            or "5m"
+        ).strip()
+        if not re.fullmatch(r"(?:0|[1-9][0-9]*(?:ms|s|m|h))", configured_keep_alive):
+            raise ValueError(
+                "keep_alive must be 0 or a positive duration such as 500ms, 5s, 5m, or 1h"
+            )
+
         validated: list[ModelSpec] = []
         seen: set[str] = set()
         for spec in catalog:
@@ -236,6 +260,7 @@ class TaskModelManager:
         self.max_model_disk_mb = max_model_disk_mb
         self.install_timeout_seconds = float(install_timeout_seconds)
         self.ephemeral = bool(ephemeral)
+        self.keep_alive = configured_keep_alive
         self._lock = threading.RLock()
 
     def select(
@@ -292,6 +317,13 @@ class TaskModelManager:
         classification_task = bool(
             token_set & {"classify", "classification", "label", "labels", "route", "triage", "detect"}
         ) and not browser and not visual and not complex_task
+        tool_task = bool(
+            token_set
+            & {
+                "tool", "tools", "tool-call", "tool_call", "function", "functions",
+                "api", "action", "actions",
+            }
+        ) and not browser and not visual and not complex_task
         code_task = bool(
             token_set
             & {"bug", "bugs", "debug", "fix", "repair", "refactor"}
@@ -303,6 +335,8 @@ class TaskModelManager:
             preferred_tags = ("browser", "general")
         elif visual:
             preferred_tags = ("vision", "general", "image")
+        elif tool_task:
+            preferred_tags = ("tools", "function", "tool", "micro", "simple")
         elif classification_task:
             preferred_tags = ("classify", "micro", "simple", "extract")
         elif code_task:
@@ -406,8 +440,8 @@ class TaskModelManager:
             try:
                 yield selection
             finally:
-                # Always unload the model from RAM. Only delete artifacts that
-                # were absent before this task started.
+                # Release the active model while allowing configured warm reuse.
+                # Only delete artifacts that were absent before this task started.
                 unload_error: Exception | None = None
                 try:
                     self.unload(selection.model)
@@ -474,7 +508,7 @@ class TaskModelManager:
             {
                 "model": model,
                 "messages": [],
-                "keep_alive": 0,
+                "keep_alive": self.keep_alive,
             },
         )
 
