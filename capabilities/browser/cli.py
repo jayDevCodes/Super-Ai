@@ -4,8 +4,6 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import subprocess
-from typing import Sequence
-
 
 class PlaywrightCliError(RuntimeError):
     """Raised when the Playwright CLI cannot execute a browser operation."""
@@ -93,7 +91,7 @@ class PlaywrightCliTransport:
             raise PlaywrightCliError("failed to start Playwright CLI") from exc
 
         result = PlaywrightCliResult(
-            args=tuple(args),
+            args=_redact_args(args),
             returncode=completed.returncode,
             stdout=_bound(completed.stdout),
             stderr=_bound(completed.stderr),
@@ -195,6 +193,18 @@ class PlaywrightCliTransport:
 
     def current_url(self) -> PlaywrightCliResult:
         return self.eval("() => location.href", raw=True)
+
+
+def _redact_args(args: tuple[str, ...]) -> tuple[str, ...]:
+    if not args:
+        return ()
+    sensitive_after = {"fill": 2, "type": 1, "select": 2}
+    redacted = list(args)
+    command = redacted[0]
+    index = sensitive_after.get(command)
+    if index is not None and len(redacted) > index:
+        redacted[index] = "<redacted>"
+    return tuple(redacted)
 
 
 def _bound(value: str, limit: int = 200_000) -> str:
