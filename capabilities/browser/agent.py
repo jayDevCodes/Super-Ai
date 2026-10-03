@@ -41,6 +41,24 @@ class BrowserAction:
     consequential: bool = False
 
     def validate(self) -> None:
+        supported = {
+            "goto",
+            "snapshot",
+            "find_text",
+            "click",
+            "fill",
+            "type",
+            "select",
+            "check",
+            "uncheck",
+            "press",
+            "scroll",
+            "wait",
+            "screenshot",
+            "extract_text",
+        }
+        if self.kind not in supported:
+            raise ValueError(f"unsupported browser action kind: {self.kind}")
         if self.kind == "goto":
             if not self.url:
                 raise ValueError("goto action requires url")
@@ -79,6 +97,8 @@ class BrowserAction:
             raise ValueError("target is too long")
         if self.value is not None and len(self.value) > 100_000:
             raise ValueError("action value is too large")
+        if self.amount is not None and self.amount > 100_000:
+            raise ValueError("action amount is too large")
         if self.url is not None and len(self.url) > 2048:
             raise ValueError("url is too long")
         if self.path is not None and "\x00" in self.path:
