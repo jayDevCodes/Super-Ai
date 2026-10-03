@@ -57,6 +57,17 @@ class ModelManagerTests(unittest.TestCase):
         )
         self.assertEqual(selection.model, "qwen3.5:0.8b")
 
+    def test_browser_capability_footprint_is_reserved_from_model_budget(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Research a complex browser task",
+            max_ram_mb=4096,
+            max_disk_mb=4096,
+            reserved_ram_mb=1024,
+            reserved_disk_mb=512,
+        )
+        self.assertEqual(selection.model, "qwen3.5:2b-q4_K_M")
+
     def test_no_model_fits_budget(self) -> None:
         manager = TaskModelManager()
         with self.assertRaises(ModelManagerError):
