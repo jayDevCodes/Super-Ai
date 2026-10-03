@@ -170,9 +170,15 @@ class OwnerAuthorization:
             raise OwnerAuthorizationError("owner override grant has expired")
 
         with self._lock:
+            issued_scope = self._issued_grants.get(grant.grant_id)
+            if issued_scope is None:
+                raise OwnerAuthorizationError("owner override grant was not issued by this verifier")
+            if not hmac.compare_digest(issued_scope, scope_digest):
+                raise OwnerAuthorizationError("owner override grant scope is invalid")
             if grant.grant_id in self._used_grants:
                 raise OwnerAuthorizationError("owner override grant has already been consumed")
             self._used_grants.add(grant.grant_id)
+            del self._issued_grants[grant.grant_id]
 
     def _read_record(self) -> OwnerAuthRecord:
         if not self.path.is_file():
