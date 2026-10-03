@@ -211,7 +211,23 @@ class Brain:
                     )
 
         if plan.requires_confirmation and not confirmed and owner_grant is None:
-            raise BrainError("task requires human confirmation before execution")
+            if owner_override_code is not None and self._owner_authorization is not None:
+                owner_grant = self._authenticate_owner(
+                    task,
+                    owner_override_code,
+                    trace,
+                )
+                self._record(
+                    "brain.owner_confirmation_decision",
+                    {
+                        "task_id": task.task_id,
+                        "proof_id": owner_grant.proof_id,
+                        "policy_state": "confirm",
+                    },
+                    trace_context=trace,
+                )
+            else:
+                raise BrainError("task requires human confirmation before execution")
 
         routes = {item.step.step_id: item.route for item in plan.steps}
 
@@ -295,6 +311,34 @@ class Brain:
             return self._emergency_authority.execute(request, owner_code=owner_code)
         except EmergencyAuthorityError as exc:
             raise BrainError("emergency command was not accepted") from exc
+
+    def _authenticate_owner(
+        self,
+        task: Task,
+        secret: str,
+        trace: TraceContext,
+    ) -> OwnerOverrideGrant:
+        if self._owner_authorization is None:
+            raise BrainError("owner authorization is not configured")
+        scope = OwnerAuthorization.scope_for_task(task.task_id, task.goal)
+        try:
+            grant = self._owner_authorization.authenticate(
+                secret,
+                scope_digest=scope,
+            )
+            self._owner_authorization.consume(grant, scope_digest=scope)
+        except (OwnerAuthorizationError, ValueError, TypeError) as exc:
+            raise BrainError("owner override authentication failed") from exc
+        self._record(
+            "brain.owner_override_authenticated",
+            {
+                "task_id": task.task_id,
+                "scope_digest": scope,
+                "proof_id": grant.proof_id,
+            },
+            trace_context=trace,
+        )
+        return grant
 
     def _record(
         self,
