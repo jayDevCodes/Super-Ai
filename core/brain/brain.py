@@ -114,10 +114,42 @@ class Brain:
         *,
         confirmed: bool = False,
         initial_context: Mapping[str, object] | None = None,
+        owner_override_code: str | None = None,
     ) -> TaskExecutionResult:
         trace = TraceContext.new_root()
-        plan = self.plan(task, trace_context=trace)
-        if plan.requires_confirmation and not confirmed:
+        owner_grant: OwnerOverrideGrant | None = None
+
+        try:
+            plan = self.plan(task, trace_context=trace)
+        except RoutingError:
+            if owner_override_code is None or self._owner_authorization is None:
+                raise
+            scope = OwnerAuthorization.scope_for_task(task.task_id, task.goal)
+            try:
+                owner_grant = self._owner_authorization.authenticate(
+                    owner_override_code,
+                    scope_digest=scope,
+                )
+                self._owner_authorization.consume(owner_grant, scope_digest=scope)
+            except (OwnerAuthorizationError, ValueError, TypeError) as exc:
+                raise BrainError("owner override authentication failed") from exc
+
+            self._record(
+                "brain.owner_override_authenticated",
+                {
+                    "task_id": task.task_id,
+                    "scope_digest": scope,
+                    "proof_id": owner_grant.proof_id,
+                },
+                trace_context=trace,
+            )
+            plan = self.plan(
+                task,
+                trace_context=trace,
+                owner_override=owner_grant,
+            )
+
+        if plan.requires_confirmation and not confirmed and owner_grant is None:
             raise BrainError("task requires human confirmation before execution")
 
         routes = {item.step.step_id: item.route for item in plan.steps}
