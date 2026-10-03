@@ -1,84 +1,138 @@
 # Google Web Task Setup
 
-This is the one-time local setup for Super-Ai's browser capability.
+Super-Ai now supports both fixed browser action tasks and natural-language browser goals.
 
 ## 1. Install the browser worker
 
-Requirements: Node.js 20 or newer.
+Requirements: Node.js 20+.
 
 Run:
 
 ```bash
-npm install -g @playwright/cli@latest
-playwright-cli install
+bash scripts/install/browser-agent.sh
 ```
 
-The Playwright CLI can target Google Chrome directly and can persist a browser profile across restarts.
+The script installs the current Playwright CLI and browser runtime.
 
-## 2. Create a dedicated Google profile
+## 2. Install a local planning model
+
+The natural-language planner uses Ollama locally. For an approximately 8 GB machine, a small Qwen3.5 model is the intended starting point.
+
+Recommended planning model:
+
+```bash
+ollama pull qwen3.5:4b-q4_K_M
+```
+
+The current Ollama registry lists this model at about 3.4 GB. A smaller option is:
+
+```bash
+ollama pull qwen3.5:2b-q4_K_M
+```
+
+Set the choice with:
+
+```bash
+export SUPER_AI_BROWSER_MODEL=qwen3.5:4b-q4_K_M
+```
+
+Make sure Ollama is running locally before starting a natural-language browser goal.
+
+## 3. Create a dedicated Google profile
 
 From the repository root:
 
 ```bash
 mkdir -p .super-ai/browser/profile .super-ai/browser/workspace
-playwright-cli -s=super-ai-browser open https://accounts.google.com --browser=chrome --headed --persistent --profile=.super-ai/browser/profile
+
+playwright-cli -s=super-ai-browser open https://accounts.google.com   --browser=chrome   --headed   --persistent   --profile=.super-ai/browser/profile
 ```
 
 Complete the Google login manually in the opened browser.
 
-Do not put the Google password, recovery codes, cookies, OAuth tokens, or session exports into the repository.
+Do not put passwords, recovery codes, cookies, OAuth tokens, or storage-state files into the repository.
 
-Then close the browser:
+Then:
 
 ```bash
 playwright-cli -s=super-ai-browser close
 ```
 
-## 3. Give a task to Super-Ai
+## 4. Give Super-Ai a natural-language goal
 
-A browser task should explicitly include the sites it may visit. For a Google-hosted application, list only the exact origins required, for example:
+Example:
 
-```json
-{
-  "goal": "Perform the approved task on my Google-hosted application",
-  "start_url": "https://example.google.com/",
-  "allowed_origins": [
-    "https://example.google.com",
-    "https://accounts.google.com"
-  ],
-  "session": "super-ai-browser",
-  "profile_dir": ".super-ai/browser/profile",
-  "workspace_dir": ".super-ai/browser/workspace",
-  "headed": true,
-  "confirmed": false,
-  "actions": [
-    {
-      "kind": "snapshot"
-    },
-    {
-      "kind": "find_text",
-      "target": "Sign in"
-    }
-  ]
-}
+```bash
+python3 scripts/run_browser_goal.py \
+  "Open my Google-hosted application and inspect what I need to do next" \
+  --start-url https://example.google.com/ \
+  --allowed-origin https://example.google.com \
+  --allowed-origin https://accounts.google.com
 ```
 
-Use fresh snapshots after page changes. Playwright's accessibility-tree refs are tied to the current page state, so an AI planner should not blindly reuse an old ref after navigation or dynamic DOM changes.
+Super-Ai will repeatedly:
 
-## 4. Consequential steps
+1. inspect the current URL and accessibility snapshot;
+2. ask the planner for one next action;
+3. validate the action;
+4. execute it through Playwright;
+5. inspect again with fresh refs;
+6. continue until the planner supplies grounded completion evidence.
 
-Mark a step such as final submission, sending a message, deleting data, purchasing something, or publishing content with:
+## 5. Consequential actions
 
-```json
-{
-  "kind": "click",
-  "target": "@e42",
-  "consequential": true
-}
+For a task such as sending, submitting, publishing, deleting, purchasing, paying, booking, ordering, or transferring, the agent stops and shows a confirmation prompt.
+
+You can pre-approve the run with:
+
+```bash
+python3 scripts/run_browser_goal.py \
+  "Submit the prepared form" \
+  --start-url https://example.google.com/ \
+  --allowed-origin https://example.google.com \
+  --confirm
 ```
 
-The browser capability will stop unless `confirmed=true` is supplied by the authorized higher-level workflow.
+Use `--confirm` only when you intentionally authorize the external action.
 
-## Notes for Google
+## 6. Brain integration
 
-Use a dedicated profile, keep the browser headed while developing, and expect the site to request additional verification sometimes. Super-Ai should pause rather than attempt to bypass a CAPTCHA, 2FA challenge, security warning, or other access-control mechanism.
+For a browser-only Brain task, use `BrowserGoalStepRunner` as the Brain's StepRunner. Supply:
+
+```text
+__browser_start_url
+__browser_allowed_origins
+__browser_confirmed
+```
+
+The Brain continues to own routing, task constraints, audit, and confirmation policy; the browser runner owns the observe/plan/execute/verify loop.
+
+## 7. Important safety behavior
+
+The planner treats webpage content as untrusted data and must ignore instructions embedded in pages that try to override Super-Ai's rules, expose secrets, disable safeguards, or navigate outside the explicit origin allowlist.
+
+Super-Ai must stop for CAPTCHA, 2FA, security warnings, unexpected origins, missing evidence, or ambiguous consequential actions. It must not attempt to bypass those controls.
+
+## 8. Troubleshooting
+
+Check Playwright:
+
+```bash
+playwright-cli --version
+```
+
+Check the named session:
+
+```bash
+playwright-cli list
+```
+
+Check Ollama:
+
+```bash
+ollama list
+```
+
+A planner error generally means Ollama is unavailable or the selected model is not installed.
+
+Browser-state files under `.super-ai/browser/` and `.playwright-cli/` are intentionally ignored by Git.
