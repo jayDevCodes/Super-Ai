@@ -31,6 +31,9 @@ class ModelSpec:
     estimated_ram_mb: int
     supports_vision: bool
     task_tags: frozenset[str]
+    context_window: int = 8192
+    license_name: str = "unknown"
+    source_url: str = ""
 
     def validate(self) -> None:
         if not self.name or self.name.strip() != self.name:
@@ -39,6 +42,12 @@ class ModelSpec:
             raise ValueError("model resource estimates must be > 0")
         if not self.task_tags:
             raise ValueError("model must have at least one task tag")
+        if self.context_window <= 0:
+            raise ValueError("model context window must be > 0")
+        if not self.license_name or self.license_name.strip() != self.license_name:
+            raise ValueError("model license_name must be a non-empty trimmed string")
+        if self.source_url and not self.source_url.startswith("https://"):
+            raise ValueError("model source_url must be HTTPS when provided")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,12 +64,50 @@ class ModelSelection:
 
 DEFAULT_MODEL_CATALOG: tuple[ModelSpec, ...] = (
     ModelSpec(
+        name="gemma3:270m",
+        family="gemma3",
+        disk_mb=292,
+        estimated_ram_mb=600,
+        supports_vision=False,
+        task_tags=frozenset({"micro", "simple", "extract", "summarize"}),
+        context_window=32_000,
+        license_name="gemma",
+        source_url="https://ollama.com/library/gemma3:270m",
+    ),
+    ModelSpec(
+        name="smollm2:360m",
+        family="smollm2",
+        disk_mb=726,
+        estimated_ram_mb=900,
+        supports_vision=False,
+        task_tags=frozenset({"micro", "simple", "classify", "extract"}),
+        context_window=8_192,
+        license_name="apache-2.0",
+        source_url="https://ollama.com/library/smollm2:360m",
+    ),
+    ModelSpec(
+        name="gemma3:1b",
+        family="gemma3",
+        disk_mb=815,
+        estimated_ram_mb=1_300,
+        supports_vision=False,
+        task_tags=frozenset({"simple", "general", "extract", "summarize", "reasoning"}),
+        context_window=32_000,
+        license_name="gemma",
+        source_url="https://ollama.com/library/gemma3:1b",
+    ),
+    ModelSpec(
         name="qwen3.5:0.8b",
         family="qwen3.5",
         disk_mb=1024,
         estimated_ram_mb=1400,
         supports_vision=True,
-        task_tags=frozenset({"simple", "classify", "extract", "summarize"}),
+        task_tags=frozenset(
+            {"simple", "classify", "extract", "summarize", "general", "browser_lite"}
+        ),
+        context_window=256_000,
+        license_name="apache-2.0",
+        source_url="https://ollama.com/library/qwen3.5:0.8b",
     ),
     ModelSpec(
         name="qwen3.5:2b-q4_K_M",
@@ -69,6 +116,20 @@ DEFAULT_MODEL_CATALOG: tuple[ModelSpec, ...] = (
         estimated_ram_mb=2600,
         supports_vision=True,
         task_tags=frozenset({"browser", "general", "image", "extract"}),
+        context_window=256_000,
+        license_name="apache-2.0",
+        source_url="https://ollama.com/library/qwen3.5:2b-q4_K_M",
+    ),
+    ModelSpec(
+        name="phi4-mini:3.8b-q4_K_M",
+        family="phi4-mini",
+        disk_mb=2500,
+        estimated_ram_mb=3200,
+        supports_vision=False,
+        task_tags=frozenset({"general", "reasoning", "coding", "tools"}),
+        context_window=128_000,
+        license_name="mit",
+        source_url="https://ollama.com/library/phi4-mini:3.8b-q4_K_M",
     ),
     ModelSpec(
         name="qwen3.5:4b-q4_K_M",
@@ -79,6 +140,9 @@ DEFAULT_MODEL_CATALOG: tuple[ModelSpec, ...] = (
         task_tags=frozenset(
             {"browser", "browser_complex", "vision", "coding", "reasoning", "general"}
         ),
+        context_window=256_000,
+        license_name="apache-2.0",
+        source_url="https://ollama.com/library/qwen3.5:4b-q4_K_M",
     ),
 )
 
@@ -203,12 +267,18 @@ class TaskModelManager:
             }
         )
 
+        classification_task = bool(
+            token_set & {"classify", "classification", "label", "labels", "route", "triage", "detect"}
+        ) and not browser and not visual and not complex_task
+
         if browser and (visual or complex_task):
             preferred_tags = ("browser_complex", "vision", "browser")
         elif browser:
             preferred_tags = ("browser", "general")
         elif visual:
             preferred_tags = ("vision", "general", "image")
+        elif classification_task:
+            preferred_tags = ("classify", "micro", "simple", "extract")
         elif complex_task:
             preferred_tags = ("reasoning", "coding", "general")
         else:
@@ -226,14 +296,34 @@ class TaskModelManager:
                 f"no catalog model fits the RAM/disk budget (ram={budget_ram}MB)"
             )
 
-        def rank(spec: ModelSpec) -> tuple[int, int, int, str]:
+        # Qwen3.5 0.8B is the guarded low-RAM browser fallback. Keep it out
+        # of the normal browser ranking so the 2B profile remains preferred
+        # whenever the budget can afford a fuller browser planner.
+        if browser and not any("browser" in spec.task_tags for spec in candidates):
+            preferred_tags = ("browser_lite", "general", "simple")
+
+        def rank(spec: ModelSpec) -> tuple[int, int, int, int, str]:
+            tag_priority = max(
+                (
+                    len(preferred_tags) - index
+                    for index, tag in enumerate(preferred_tags)
+                    if tag in spec.task_tags
+                ),
+                default=0,
+            )
             tag_score = max(
                 (len(spec.task_tags.intersection({tag})) for tag in preferred_tags),
                 default=0,
             )
             # Prefer the smallest viable model, unless the task is complex or escalated.
             size_score = -spec.estimated_ram_mb if not complex_task else spec.estimated_ram_mb
-            return (tag_score, size_score, int(spec.supports_vision and visual), spec.name)
+            return (
+                tag_priority,
+                tag_score,
+                size_score,
+                int(spec.supports_vision and visual),
+                spec.name,
+            )
 
         selected = sorted(candidates, key=rank, reverse=True)[0]
         return ModelSelection(

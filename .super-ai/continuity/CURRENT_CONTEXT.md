@@ -1,6 +1,6 @@
 # Current Super-Ai Context Snapshot
 
-Snapshot point: main @ ead4f92bfaa32a3478ad28cd92ac6b8ba2b56c4c (step 132 merge checkpoint)
+Snapshot point: main @ 0175739 (browser/owner-auth repair merge; model-catalog research increment currently in working tree)
 Autonomous checkpoint: steps 32–132 complete; next step 133 — Harden process limits.
 Main CI status at the preceding merge checkpoint was green (GitHub Actions run 171); step 132 branch CI run 176 was green on Python 3.11, 3.12, and 3.13.
 
@@ -39,6 +39,7 @@ Task → Brain/DAG → Router/Policy → Resource Admission/Lease → Immutable 
 - core/audit: hash-chain audit evidence.
 - core/resource_feedback and core/recovery: feedback/retry foundations.
 - core/cache: artifact cache foundation.
+- core/models: task-scoped local model catalog and RAM/disk-aware selection.
 
 ## Completed checkpoint history
 Steps 1-10 established resource-aware scheduling, immutable capability loading/resolution, secure staging, sandbox contracts, execution control, leases/sessions, attestation/telemetry, real-runtime integration, and the initial autonomous engineering framework.
@@ -86,6 +87,14 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - The export layer was also corrupted once by literal backslash-n characters; CI runs 167/168 caught the syntax regression and both package init files were repaired before the checkpoint proceeded.
 - Apple Container behavioral claims cannot be fully proven by Linux-hosted CI; real Apple Silicon smoke tests remain opt-in on an actual compatible macOS host.
 - Supply-chain signature verification is intentionally pluggable; the core adapter does not claim to provide a cryptographic implementation itself.
+
+## Model catalog research snapshot (2026-10-03)
+
+- Added bounded catalog entries for Gemma 3 270M/1B, SmolLM2 360M, Qwen3.5 0.8B/2B/4B, and Phi-4-mini 3.8B Q4_K_M.
+- Micro extraction routes to Gemma 3 270M; classification routes to SmolLM2 360M; tight browser budgets use Qwen3.5 0.8B; normal browser work uses Qwen3.5 2B; mid-budget reasoning can use Phi-4-mini; complex multimodal browser work can use Qwen3.5 4B.
+- Model metadata now records context window, license label, and HTTPS source URL. Gemma is explicitly recorded as Gemma-terms open weights rather than Apache/MIT.
+- Official Ollama/Hugging Face sources and size assumptions are recorded in `docs/research/SMALL_MODELS.md`.
+- Routing is deterministic and task-scoped; no new model is downloaded until the selected task enters the existing model lifecycle.
 
 ## Validation evidence
 - Branch PR #47 completed with 15 commits, 59 changed files, 2282 additions, and 111 deletions before squash merge.

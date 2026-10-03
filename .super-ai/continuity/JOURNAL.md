@@ -118,3 +118,28 @@ Remaining limitation:
 - Real Apple Container behavioral validation still requires compatible Apple Silicon/macOS hardware; hosted Linux CI validates the contract semantics and mocked adapter behavior.
 
 Next intended engineering checkpoint: Step 134 — Harden quotas.
+
+## 2026-10-03 — small-model catalog research increment
+
+Branch/commit context: `main` at `0175739`; this research increment is currently local and has not been merged.
+
+Scope:
+- researched official Ollama model pages and official Hugging Face model cards for compact open-weight candidates;
+- added Gemma 3 270M/1B, SmolLM2 360M, and Phi-4-mini 3.8B Q4_K_M to the task-scoped catalog;
+- added context-window, license label, and source URL metadata to `ModelSpec`;
+- added priority-aware routing so micro extraction, classification, low-RAM browser, normal browser, mid-budget reasoning, and complex visual tasks choose different smallest viable profiles;
+- documented source URLs, license caveats, and size assumptions in `docs/research/SMALL_MODELS.md`.
+
+Research sources/version assumptions:
+- Ollama library pages for `gemma3`, `smollm2`, `qwen3.5`, and `phi4-mini` were checked on 2026-10-03.
+- Official Hugging Face cards confirm Qwen3.5 0.8B Apache-2.0, Gemma 3 270M Gemma terms, and SmolLM2 360M Apache-2.0.
+- Published Ollama artifact sizes are used as disk estimates; RAM estimates remain conservative admission values and require target-host measurement before tuning.
+
+Validation:
+- 31 capability tests passed.
+- 275 repository tests passed with 1 expected skip.
+- Routing matrix selected Gemma 270M, SmolLM2 360M, Qwen3.5 0.8B/2B/4B, and Phi-4-mini as intended under representative budgets.
+
+Remaining limitations:
+- No model was downloaded during this catalog-only step; Ollama availability and measured latency/RSS still need target-host benchmark runs.
+- The existing UI remains a separate local working-tree artifact and is intentionally outside this research increment.

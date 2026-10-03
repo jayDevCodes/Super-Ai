@@ -29,6 +29,44 @@ class FakeModelManager(TaskModelManager):
 
 
 class ModelManagerTests(unittest.TestCase):
+    def test_micro_task_prefers_smallest_catalog_model(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Extract a short label from this text",
+            max_ram_mb=1000,
+            max_disk_mb=500,
+        )
+        self.assertEqual(selection.model, "gemma3:270m")
+        self.assertEqual(selection.spec.license_name, "gemma")
+
+    def test_tight_browser_budget_uses_qwen_lite_fallback(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Browse a page and extract the title",
+            max_ram_mb=1600,
+            max_disk_mb=1200,
+        )
+        self.assertEqual(selection.model, "qwen3.5:0.8b")
+
+    def test_classification_task_uses_compact_apache_model(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Classify this short message into one label",
+            max_ram_mb=1200,
+            max_disk_mb=1000,
+        )
+        self.assertEqual(selection.model, "smollm2:360m")
+        self.assertEqual(selection.spec.license_name, "apache-2.0")
+
+    def test_mid_budget_reasoning_can_use_phi_mini(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Reason through this coding problem and explain the answer",
+            max_ram_mb=3500,
+            max_disk_mb=3000,
+        )
+        self.assertEqual(selection.model, "phi4-mini:3.8b-q4_K_M")
+
     def test_browser_budget_prefers_smallest_viable_model(self) -> None:
         manager = TaskModelManager()
         selection = manager.select(
@@ -73,8 +111,8 @@ class ModelManagerTests(unittest.TestCase):
         with self.assertRaises(ModelManagerError):
             manager.select(
                 "Open a complex browser workflow",
-                max_ram_mb=800,
-                max_disk_mb=800,
+                max_ram_mb=500,
+                max_disk_mb=200,
             )
 
     def test_ephemeral_model_is_unloaded_and_removed_when_downloaded(self) -> None:
