@@ -6,7 +6,7 @@ from typing import Mapping, Protocol
 from core.contracts import Task, TaskStep
 from core.planner import StepExecution, TaskExecutionResult, TaskExecutor
 from core.router import CapabilityRouter, RouteCandidate, RouteRequest, RoutingError
-from core.security import OwnerAuthorization, OwnerAuthorizationError, OwnerOverrideGrant
+from core.security import EmergencyAuthority, EmergencyAuthorityError, OwnerAuthorization, OwnerAuthorizationError, OwnerOverrideGrant
 from core.policy import PolicyDecisionState
 from core.audit import HashChainAuditStore
 from core.observability import TraceContext
@@ -53,6 +53,7 @@ class Brain:
         audit_store: HashChainAuditStore | None = None,
         model_manager: TaskModelManager | None = None,
         owner_authorization: OwnerAuthorization | None = None,
+        emergency_authority: EmergencyAuthority | None = None,
     ) -> None:
         self._router = router
         self._runner = runner
@@ -60,6 +61,7 @@ class Brain:
         self._audit = audit_store
         self._model_manager = model_manager
         self._owner_authorization = owner_authorization
+        self._emergency_authority = emergency_authority
 
     def plan(
         self,
@@ -160,6 +162,11 @@ class Brain:
     ) -> TaskExecutionResult:
         trace = TraceContext.new_root()
         owner_grant: OwnerOverrideGrant | None = None
+        if self._emergency_authority is not None:
+            try:
+                self._emergency_authority.assert_task_allowed(task.task_id)
+            except EmergencyAuthorityError as exc:
+                raise BrainError(str(exc)) from exc
 
         try:
             plan = self.plan(task, trace_context=trace)
@@ -209,6 +216,11 @@ class Brain:
         routes = {item.step.step_id: item.route for item in plan.steps}
 
         def handler(step: TaskStep, context: Mapping[str, object]) -> object:
+            if self._emergency_authority is not None:
+                try:
+                    self._emergency_authority.assert_task_allowed(task.task_id)
+                except EmergencyAuthorityError as exc:
+                    raise BrainError(str(exc)) from exc
             route = routes.get(step.step_id)
             if route is None:
                 raise BrainError(f"missing route for step {step.step_id!r}")
@@ -275,6 +287,14 @@ class Brain:
             trace_context=trace,
         )
         return result
+
+    def execute_emergency(self, request, *, owner_code: str) -> OwnerOverrideGrant:
+        if self._emergency_authority is None:
+            raise BrainError("emergency authority is not configured")
+        try:
+            return self._emergency_authority.execute(request, owner_code=owner_code)
+        except EmergencyAuthorityError as exc:
+            raise BrainError("emergency command was not accepted") from exc
 
     def _record(
         self,
