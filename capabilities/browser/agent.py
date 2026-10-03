@@ -44,20 +44,22 @@ class BrowserAction:
         if self.kind == "goto":
             if not self.url:
                 raise ValueError("goto action requires url")
-        elif self.kind in {
-            "click",
-            "fill",
-            "select",
-            "check",
-            "uncheck",
-        }:
+        elif self.kind in {"click", "check", "uncheck"}:
             if not self.target:
                 raise ValueError(f"{self.kind} action requires target")
+        elif self.kind == "fill":
+            if not self.target:
+                raise ValueError("fill action requires target")
+            if self.value is None:
+                raise ValueError("fill action requires value")
+        elif self.kind == "select":
+            if not self.target:
+                raise ValueError("select action requires target")
+            if self.value is None:
+                raise ValueError("select action requires value")
         elif self.kind == "find_text":
             if not self.target:
                 raise ValueError("find_text action requires target text")
-        elif self.kind in {"fill", "select"} and self.value is None:
-            raise ValueError(f"{self.kind} action requires value")
         elif self.kind == "type" and self.value is None:
             raise ValueError("type action requires value")
         elif self.kind == "press" and not self.value:
@@ -77,6 +79,7 @@ class BrowserAction:
             raise ValueError("url is too long")
         if self.path is not None and "\x00" in self.path:
             raise ValueError("path contains a NUL byte")
+
 
 
 @dataclass(frozen=True, slots=True)
