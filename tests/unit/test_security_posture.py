@@ -1,7 +1,14 @@
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 
-from core.security.posture import NetworkEgress, NetworkMode, SecurityAuditor, SecurityProfile
+from core.security.posture import (
+    FilesystemPosture,
+    NetworkEgress,
+    NetworkMode,
+    SecurityAuditor,
+    SecurityProfile,
+    SecurityPostureError,
+)
 from core.security.race import FenceError, OwnershipFence
 
 
@@ -21,6 +28,12 @@ class SecurityPostureTests(unittest.TestCase):
         )
         self.assertTrue(network.permits_ip("10.2.3.4"))
         self.assertFalse(network.permits_ip("8.8.8.8"))
+
+    def test_filesystem_scope_rejects_traversal_and_requires_writes(self):
+        with self.assertRaises(SecurityPostureError):
+            FilesystemPosture(allowed_writes=("/workspace/../secrets",)).validate()
+        with self.assertRaises(SecurityPostureError):
+            FilesystemPosture(allowed_writes=()).validate()
 
     def test_fence_rejects_stale_cleanup(self):
         fence = OwnershipFence()
