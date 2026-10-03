@@ -226,7 +226,6 @@ def re_match_ref(target: str) -> bool:
 
 
 def _bound(value: str, limit: int = 200_000) -> str:
-def _bound(value: str, limit: int = 200_000) -> str:
     if len(value) <= limit:
         return value
     return value[:limit] + "\n[output truncated by Super-Ai]"
