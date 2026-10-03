@@ -89,7 +89,7 @@ class BrainOwnerDecisionTests(unittest.TestCase):
             registry = CapabilityRegistry([browser_entry()])
             policy = CapabilityPolicyEngine(
                 CapabilityPolicy(
-                    allowed_permissions=frozenset({"browser", "network"})
+                    allowed_permissions=frozenset({"browser", "network", "submit"})
                 )
             )
             runner = Runner()
@@ -106,7 +106,11 @@ class BrainOwnerDecisionTests(unittest.TestCase):
                 ),
             )
 
-            self.assertTrue(brain.execute(task).succeeded)
+            with self.assertRaises(Exception):
+                brain.execute(task)
+            self.assertTrue(
+                brain.execute(task, owner_override_code=secret).succeeded
+            )
 
 
 if __name__ == "__main__":
