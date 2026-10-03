@@ -12,6 +12,15 @@ class SecurityBoundaryTests(unittest.TestCase):
         with self.assertRaises(CapabilityBoundaryError):
             boundary.validate_request(frozenset({"CAP_SYS_ADMIN"}))
 
+    def test_capability_allowlist_does_not_silently_drop_requests(self):
+        boundary = CapabilityBoundary(frozenset({"CAP_CHOWN"}))
+        with self.assertRaises(CapabilityBoundaryError) as context:
+            boundary.validate_request(frozenset({"CAP_CHOWN", "CAP_DAC_READ_SEARCH"}))
+        self.assertIn("CAP_DAC_READ_SEARCH", str(context.exception))
+
+    def test_default_capability_boundary_is_empty(self):
+        self.assertEqual(CapabilityBoundary().allowed(), frozenset())
+
     def test_https_host_allowlist(self):
         boundary = NetworkBoundary(frozenset({"example.com"}))
         self.assertTrue(boundary.permits_url("https://example.com/path"))
