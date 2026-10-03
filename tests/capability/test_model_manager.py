@@ -198,6 +198,32 @@ class ModelManagerTests(unittest.TestCase):
         manager = TaskModelManager(keep_alive="0")
         self.assertEqual(manager.keep_alive, "0")
 
+    def test_keep_alive_is_forwarded_when_releasing_a_model(self) -> None:
+        manager = TaskModelManager(keep_alive="5m")
+        calls = []
+
+        def fake_request(method, path, payload=None):
+            calls.append((method, path, payload))
+            return {}
+
+        manager._request_json = fake_request
+        manager.unload("gemma3:270m")
+
+        self.assertEqual(
+            calls,
+            [
+                (
+                    "POST",
+                    "/api/chat",
+                    {
+                        "model": "gemma3:270m",
+                        "messages": [],
+                        "keep_alive": "5m",
+                    },
+                )
+            ],
+        )
+
     def test_explicit_unknown_model_is_rejected(self) -> None:
         manager = TaskModelManager()
         with self.assertRaises(ModelManagerError):
