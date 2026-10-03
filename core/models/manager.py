@@ -292,6 +292,14 @@ class TaskModelManager:
         }
         return model in names
 
+    def selection_for_model(self, model: str) -> ModelSelection:
+        if not model or model.strip() != model:
+            raise ValueError("model must be a non-empty trimmed string")
+        for spec in self.catalog:
+            if spec.name == model:
+                return ModelSelection(spec=spec, reason="explicit model selection")
+        raise ModelManagerError(f"model is not in the managed catalog: {model}")
+
     def ensure_installed(self, selection: ModelSelection) -> None:
         spec = selection.spec
         if spec.estimated_ram_mb > self.max_model_ram_mb:
