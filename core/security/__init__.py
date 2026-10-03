@@ -61,6 +61,13 @@ __all__ = [
     "OwnerAuthorizationError",
     "OwnerAuthRecord",
     "OwnerOverrideGrant",
+    "EmergencyAuthority",
+    "EmergencyAuthorityError",
+    "EmergencyCommand",
+    "EmergencyRequest",
+    "EmergencyState",
 ]
 
 from .owner_override import OwnerAuthorization, OwnerAuthorizationError, OwnerAuthRecord, OwnerOverrideGrant
+
+from .emergency import EmergencyAuthority, EmergencyAuthorityError, EmergencyCommand, EmergencyRequest, EmergencyState
