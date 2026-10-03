@@ -74,7 +74,7 @@ Configure it once:
 python3 scripts/setup_owner_auth.py
 ```
 
-The setup tool accepts the code without echoing it. Only a salted scrypt verifier is stored under `.super-ai/security/owner_auth.json`; the code itself is not stored or sent to models. The verifier follows current password-storage guidance to use a slow, memory-hard password KDF rather than plain SHA-256. citeturn425694search0turn425694search1
+The setup tool accepts the code only from an interactive hidden prompt. It rejects non-interactive input so the code is not accidentally supplied through a pipe or shell argument. Only a salted scrypt verifier is stored under `.super-ai/security/owner_auth.json`; the code itself is not stored or sent to models. The verifier directory is restricted to the owner, and the verifier is written atomically with restrictive file permissions. If a verifier already exists, rotation requires an explicit `--rotate` confirmation. Never place the owner code in commands, environment variables, Git files, logs, prompts, or task output.
 
 During a policy conflict, application code can call `Brain.execute(..., owner_override_code=...)`. The code is checked against the local verifier, converted into a short-lived task-scoped grant, consumed once, and recorded in the append-only audit hash chain with task/capability/policy evidence. The code never enters model context.
 
