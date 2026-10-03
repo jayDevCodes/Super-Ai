@@ -6,6 +6,7 @@ on:
       - "capabilities/browser/**"
       - "tests/capability/test_browser_agent.py"
       - "tests/capability/test_browser_planner.py"
+      - "tests/capability/test_model_manager.py"
       - ".github/workflows/browser-capability.yml"
   push:
     branches:
@@ -32,3 +33,4 @@ jobs:
         run: |
           python -m unittest discover -s tests/capability -p "test_browser_agent.py" -v
           python -m unittest discover -s tests/capability -p "test_browser_planner.py" -v
+          python -m unittest discover -s tests/capability -p "test_model_manager.py" -v
