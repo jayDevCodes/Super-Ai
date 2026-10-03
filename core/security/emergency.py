@@ -8,6 +8,7 @@ from threading import RLock
 from typing import Mapping
 
 from .owner_override import OwnerAuthorization, OwnerAuthorizationError, OwnerOverrideGrant
+from core.audit import HashChainAuditStore
 
 
 class EmergencyCommand(str, Enum):
@@ -16,6 +17,7 @@ class EmergencyCommand(str, Enum):
     ENABLE_AUTONOMY = "enable_autonomy"
     SHUTDOWN = "shutdown"
     OWNER_DIRECTIVE = "owner_directive"
+    RESUME_TASK = "resume_task"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +45,7 @@ class EmergencyState:
     shutdown_requested: bool = False
     stopped_tasks: tuple[str, ...] = ()
     owner_directive: str = ""
+    owner_decision_mode: str = "ai"
     last_proof_id: str = ""
 
     def validate(self) -> None:
@@ -50,6 +53,8 @@ class EmergencyState:
             raise ValueError("stopped task ids must be non-empty")
         if len(self.owner_directive) > 4096:
             raise ValueError("owner directive is too long")
+        if self.owner_decision_mode not in {"ai", "owner"}:
+            raise ValueError("owner_decision_mode must be ai or owner")
         if len(self.last_proof_id) > 128:
             raise ValueError("proof id is too long")
 
@@ -76,6 +81,7 @@ class EmergencyAuthority:
             raise TypeError("owner_authorization must be an OwnerAuthorization")
         self._auth = owner_authorization
         self._state_path = Path(state_path)
+        self._audit = audit_store
         self._lock = RLock()
 
     @property
@@ -99,6 +105,7 @@ class EmergencyAuthority:
                     str(item) for item in raw.get("stopped_tasks", [])
                 ),
                 owner_directive=str(raw.get("owner_directive", "")),
+                owner_decision_mode=str(raw.get("owner_decision_mode", "ai")),
                 last_proof_id=str(raw.get("last_proof_id", "")),
             )
             try:
@@ -130,6 +137,7 @@ class EmergencyAuthority:
                     shutdown_requested=current.shutdown_requested,
                     stopped_tasks=tasks,
                     owner_directive=current.owner_directive,
+                    owner_decision_mode=current.owner_decision_mode,
                     last_proof_id=grant.proof_id,
                 )
             elif request.command is EmergencyCommand.DISABLE_AUTONOMY:
@@ -138,14 +146,16 @@ class EmergencyAuthority:
                     shutdown_requested=current.shutdown_requested,
                     stopped_tasks=current.stopped_tasks,
                     owner_directive=current.owner_directive,
+                    owner_decision_mode="owner",
                     last_proof_id=grant.proof_id,
                 )
             elif request.command is EmergencyCommand.ENABLE_AUTONOMY:
                 next_state = EmergencyState(
                     autonomy_enabled=True,
-                    shutdown_requested=current.shutdown_requested,
+                    shutdown_requested=False,
                     stopped_tasks=current.stopped_tasks,
-                    owner_directive=current.owner_directive,
+                    owner_directive="",
+                    owner_decision_mode="ai",
                     last_proof_id=grant.proof_id,
                 )
             elif request.command is EmergencyCommand.SHUTDOWN:
@@ -153,21 +163,51 @@ class EmergencyAuthority:
                     autonomy_enabled=False,
                     shutdown_requested=True,
                     stopped_tasks=current.stopped_tasks,
-                    owner_directive=current.owner_directive,
+                    owner_directive="",
+                    owner_decision_mode="owner",
                     last_proof_id=grant.proof_id,
                 )
             elif request.command is EmergencyCommand.OWNER_DIRECTIVE:
                 next_state = EmergencyState(
-                    autonomy_enabled=current.autonomy_enabled,
+                    autonomy_enabled=False,
                     shutdown_requested=current.shutdown_requested,
                     stopped_tasks=current.stopped_tasks,
                     owner_directive=request.directive or "",
+                    owner_decision_mode="owner",
+                    last_proof_id=grant.proof_id,
+                )
+            elif request.command is EmergencyCommand.RESUME_TASK:
+                stopped = tuple(
+                    value for value in current.stopped_tasks
+                    if value != (request.task_id or "")
+                )
+                next_state = EmergencyState(
+                    autonomy_enabled=current.autonomy_enabled,
+                    shutdown_requested=current.shutdown_requested,
+                    stopped_tasks=stopped,
+                    owner_directive=current.owner_directive,
+                    owner_decision_mode=current.owner_decision_mode,
                     last_proof_id=grant.proof_id,
                 )
             else:
                 raise EmergencyAuthorityError("unsupported emergency command")
 
             self._write_state(next_state)
+            if self._audit is not None:
+                import hashlib
+                directive_digest = hashlib.sha256(
+                    (request.directive or "").encode("utf-8")
+                ).hexdigest()
+                self._audit.append(
+                    "owner.emergency_command",
+                    {
+                        "command": request.command.value,
+                        "task_id": request.task_id or "",
+                        "directive_sha256": directive_digest,
+                        "scope_digest": scope,
+                        "proof_id": grant.proof_id,
+                    },
+                )
         return grant
 
     def task_allowed(self, task_id: str) -> bool:
@@ -175,6 +215,7 @@ class EmergencyAuthority:
         return (
             state.autonomy_enabled
             and not state.shutdown_requested
+            and state.owner_decision_mode == "ai"
             and task_id not in set(state.stopped_tasks)
         )
 
@@ -235,6 +276,7 @@ class EmergencyAuthority:
             "shutdown_requested": state.shutdown_requested,
             "stopped_tasks": list(state.stopped_tasks),
             "owner_directive": state.owner_directive,
+            "owner_decision_mode": state.owner_decision_mode,
             "last_proof_id": state.last_proof_id,
         }
         temp = self._state_path.with_suffix(self._state_path.suffix + ".tmp")
