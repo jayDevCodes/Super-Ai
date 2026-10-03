@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 from capabilities.browser.agent import BrowserAction
@@ -229,6 +231,20 @@ class BrowserPlannerTests(unittest.TestCase):
             max_snapshot_chars=5,
         )
         self.assertIn("TRUNCATED", obs.bounded_snapshot)
+
+    def test_screenshot_observation_is_encoded_for_vision_models(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "state.png"
+            path.write_bytes(b"fake-png-bytes")
+            observation = BrowserObservation(
+                url="https://example.com",
+                snapshot="button",
+                allowed_origins=("https://example.com",),
+                screenshot_path=path,
+            )
+            encoded = observation.bounded_screenshot_base64
+            self.assertIsNotNone(encoded)
+            self.assertGreater(len(encoded), 0)
 
     def test_remote_planner_requires_explicit_opt_in(self):
         with self.assertRaises(ValueError):
