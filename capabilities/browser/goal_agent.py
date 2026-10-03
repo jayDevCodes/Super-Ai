@@ -85,6 +85,7 @@ class BrowserGoalAgent:
         evidence: list[str] = []
         action_count = 0
         last_fingerprint: str | None = None
+        last_screenshot: Path | None = None
 
         try:
             opened = self._transport.open(
@@ -97,7 +98,7 @@ class BrowserGoalAgent:
             outputs.append(opened.stdout)
 
             for cycle in range(1, self._max_cycles + 1):
-                observation = self._observe(task)
+                observation = self._observe(task, screenshot_path=last_screenshot)
                 state_fingerprint = _fingerprint(observation.url, observation.snapshot)
                 if state_fingerprint == last_fingerprint:
                     history.append("state unchanged after previous cycle")
@@ -187,6 +188,12 @@ class BrowserGoalAgent:
                     action_count += 1
                     outputs.append(result.stdout)
                     history.append(_safe_history_line(action, result.stdout))
+                    if action.kind == "screenshot" and action.path:
+                        last_screenshot = (
+                            task.workspace_dir.expanduser().resolve() / action.path
+                        ).resolve()
+                    else:
+                        last_screenshot = None
                     if len(history) > 12:
                         del history[:-12]
                     self._assert_current_origin(task)
@@ -215,7 +222,12 @@ class BrowserGoalAgent:
                 f"browser goal failed: {type(exc).__name__}: {exc}"
             ) from exc
 
-    def _observe(self, task: BrowserTask) -> BrowserObservation:
+    def _observe(
+        self,
+        task: BrowserTask,
+        *,
+        screenshot_path: Path | None = None,
+    ) -> BrowserObservation:
         current = self._transport.current_url().stdout.strip()
         if not current or not task.origin_allowed(current):
             raise BrowserGoalAgentError(
@@ -226,6 +238,7 @@ class BrowserGoalAgent:
             url=current,
             snapshot=snapshot,
             allowed_origins=task.allowed_origins,
+            screenshot_path=screenshot_path,
         )
 
     def _run_action(
