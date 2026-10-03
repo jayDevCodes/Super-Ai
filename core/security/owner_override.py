@@ -94,6 +94,7 @@ class OwnerAuthorization:
         self._failed_attempts = 0
         self._lock = RLock()
         self._used_grants: set[str] = set()
+        self._issued_grants: dict[str, str] = {}
 
     @property
     def configured(self) -> bool:
