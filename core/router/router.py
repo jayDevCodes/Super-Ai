@@ -60,6 +60,7 @@ class CapabilityRouter:
         request: RouteRequest,
         *,
         include_confirmation: bool = False,
+        owner_override: bool = False,
     ) -> tuple[RouteCandidate, ...]:
         request.validate()
         candidates: list[RouteCandidate] = []
