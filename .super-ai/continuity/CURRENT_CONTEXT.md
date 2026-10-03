@@ -1,7 +1,7 @@
 # Current Super-Ai Context Snapshot
 
-Snapshot point: main @ a845240 (quota-lease hardening merge)
-Autonomous checkpoint: steps 32–134 complete; next step 135 — Harden race handling.
+Snapshot point: main @ 1e68995 (race-fence hardening merge)
+Autonomous checkpoint: steps 32–135 complete; next step 136 — Document hardening audits.
 Main CI status at the preceding merge checkpoint was green (GitHub Actions run 171); step 132 branch CI run 176 was green on Python 3.11, 3.12, and 3.13.
 
 ## Mission
@@ -51,6 +51,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - 132: secret-boundary hardening with bounded value-blind environment validation, explicit forbidden-name support, pre-copy validation, and non-secret audit evidence.
 - 133: process/open-file hardening with bounded SandboxPolicy limits, Apple Container nproc/nofile flags, pre-start rlimit attestation, contract fingerprinting, and fail-closed tests.
 - 134: quota-lease hardening with atomic admission, opaque single-use leases, exact-match release validation, and fail-closed tests.
+- 135: race-fence hardening with token validation, atomic release, ownership replacement handoff, and concurrency tests.
 
 ## Key merged commits
 - Step 11: f5afa8339fbe11fa73c7b0829d9c59e2b31fa723
@@ -108,7 +109,7 @@ Steps 32-131 are now merged as the 100-step checkpoint:
 - New unit tests cover control-plane configuration/specs, supply-chain evidence/policy/sync/verification, security posture/boundaries/evidence, cleanup fencing, admission composition, benchmarks, and telemetry.
 
 ## Next-step intent
-Step 135 — Harden race handling. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing ownership/race-fence contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
+Step 136 — Document hardening audits. Before starting it, audit state, continuity, open PRs, current main CI, older failures, and the existing hardening/evidence contracts. Preserve the same inspect → research → design → implement → test → CI → repair → document → merge → checkpoint loop.
 
 ## Never forget
 Do not rewrite history to make the project look cleaner. Preserve prior decisions and failures as learning signals. The next agent should build on the existing system instead of starting over.

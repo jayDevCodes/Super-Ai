@@ -163,3 +163,22 @@ Validation:
 
 Remaining limitation:
 - reservations remain process-local; crash recovery or distributed leasing requires a future explicit expiry and ownership contract.
+
+## 2026-10-03 — autonomous step 135 — Harden race handling
+
+Branch/PR: `codex/harden-race-fence` / PR #55.
+Merge commit: 1e68995.
+
+Scope:
+- validated fence token and owner identifier shape;
+- made release a single lock-held compare-and-remove operation;
+- added atomic ownership replacement with a fresh nonce;
+- added concurrent single-winner, stale-token and malformed-identifier tests;
+- added ADR 0052.
+
+Validation:
+- local full suite passed: 280 tests, 1 skipped;
+- PR #55 CI passed on Python 3.11, 3.12 and 3.13.
+
+Remaining limitation:
+- ownership state remains process-local; distributed recovery still needs a durable lease protocol.
