@@ -33,4 +33,4 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run verifier tests
         run: |
-          python -m unittest tests.unit.test_owner_authorization tests.unit.test_brain_owner_decision tests.unit.test_router -v
+          python -m unittest tests.unit.test_owner_authorization tests.unit.test_emergency_authority tests.unit.test_brain_owner_decision tests.unit.test_router -v
