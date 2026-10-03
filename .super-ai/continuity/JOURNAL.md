@@ -225,3 +225,17 @@ Scope:
 Validation:
 - local full suite passed: 283 tests, 1 skipped;
 - PR #58 CI passed on Python 3.11, 3.12 and 3.13.
+
+## 2026-10-03 — autonomous step 139 — Document filesystem isolation
+
+Branch/PR: `codex/document-filesystem-isolation` / PR #59.
+Merge commit: 1b08360.
+
+Scope:
+- documented read-only root and explicit `/workspace`/`/tmp` write scopes;
+- documented traversal/control-character rejection and fail-closed adapters;
+- added focused tests for traversal and empty-scope rejection.
+
+Validation:
+- local full suite passed: 284 tests, 1 skipped;
+- PR #59 CI passed on Python 3.11, 3.12 and 3.13.
