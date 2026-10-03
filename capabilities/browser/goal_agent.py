@@ -6,13 +6,7 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from .agent import (
-    BrowserAction,
-    BrowserAgent,
-    BrowserAgentError,
-    BrowserResult,
-    BrowserTask,
-)
+from .agent import BrowserAction, BrowserAgent, BrowserTask
 from .cli import PlaywrightCliTransport
 from .planner import (
     BrowserIntentPlanner,
@@ -227,35 +221,19 @@ class BrowserGoalAgent:
                 "current browser URL is empty or outside the allowed origin list"
             )
         snapshot = self._transport.snapshot().stdout
-        return BrowserObservation(url=current, snapshot=snapshot)
+        return BrowserObservation(
+            url=current,
+            snapshot=snapshot,
+            allowed_origins=task.allowed_origins,
+        )
 
     def _run_action(
         self,
         task: BrowserTask,
         action: BrowserAction,
     ):
-        # Reuse the existing deterministic executor for one action without
-        # reopening the browser profile.
-        normalized = BrowserTask(
-            goal=task.goal,
-            start_url=task.start_url,
-            actions=(action,),
-            allowed_origins=task.allowed_origins,
-            session=task.session,
-            profile_dir=task.profile_dir,
-            workspace_dir=task.workspace_dir,
-            headed=task.headed,
-            confirmed=True,
-        )
-        normalized.validate()
-
-        # Dispatch directly against the active Playwright session. The normal
-        # BrowserAgent is also responsible for action/path validation.
-        return BrowserAgent(self._transport)._run_action(
-            action,
-            normalized,
-            task.workspace_dir.expanduser().resolve(),
-        )
+        executor = BrowserAgent(self._transport)
+        return executor.execute_action(task, action)
 
     def _assert_current_origin(self, task: BrowserTask) -> None:
         current = self._transport.current_url().stdout.strip()
