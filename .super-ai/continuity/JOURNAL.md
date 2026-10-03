@@ -182,3 +182,18 @@ Validation:
 
 Remaining limitation:
 - ownership state remains process-local; distributed recovery still needs a durable lease protocol.
+
+## 2026-10-03 — autonomous step 136 — Document hardening audits
+
+Branch/PR: `codex/document-hardening-audit` / PR #56.
+Merge commit: 6a2abe0.
+
+Scope:
+- named all ten hardening controls in `HARDENING_CONTROL_IDS`;
+- exposed the exact control IDs in `HardeningEvidence`;
+- documented enforcement/evidence/limitations in `docs/security/HARDENING_AUDIT.md`;
+- added regression coverage that prevents silent control-list drift.
+
+Validation:
+- local full suite passed: 281 tests, 1 skipped;
+- PR #56 CI passed unit and verifier matrices on Python 3.11, 3.12 and 3.13.
