@@ -1,7 +1,7 @@
 from .capabilities import CapabilityBoundary, CapabilityBoundaryError
 from .environment import EnvironmentPolicyError, build_sandbox_environment, is_sensitive_name
 from .evidence import SecurityEvidence, build_security_evidence
-from .hardening import HardeningController, HardeningEvidence
+from .hardening import HARDENING_CONTROL_IDS, HardeningController, HardeningEvidence
 from .network import NetworkBoundary, NetworkBoundaryError
 from .posture import (
     FilesystemMode, FilesystemPosture, NetworkEgress, NetworkMode, ProcessQuota,
@@ -30,6 +30,7 @@ __all__ = [
     "FilesystemPosture",
     "HardeningController",
     "HardeningEvidence",
+    "HARDENING_CONTROL_IDS",
     "NetworkBoundary",
     "NetworkBoundaryError",
     "NetworkEgress",

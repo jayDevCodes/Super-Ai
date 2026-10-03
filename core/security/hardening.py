@@ -8,12 +8,27 @@ from .posture import SecurityProfile, SecurityAuditReport, SecurityAuditor
 from .translation import compile_security_envelope
 
 
+HARDENING_CONTROL_IDS: tuple[str, ...] = (
+    "non-root",
+    "no-new-privileges",
+    "syscall-posture",
+    "filesystem-isolation",
+    "network-policy",
+    "secret-boundary",
+    "process-quota",
+    "open-file-quota",
+    "capability-boundary",
+    "ownership-race-fence",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class HardeningEvidence:
     accepted: bool
     profile_fingerprint: str
     findings: tuple[str, ...]
     control_count: int
+    control_ids: tuple[str, ...] = HARDENING_CONTROL_IDS
 
 
 class HardeningController:
@@ -44,5 +59,6 @@ class HardeningController:
             accepted=report.accepted,
             profile_fingerprint=digest,
             findings=report.findings,
-            control_count=10,
+            control_count=len(HARDENING_CONTROL_IDS),
+            control_ids=HARDENING_CONTROL_IDS,
         )
