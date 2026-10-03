@@ -26,3 +26,24 @@ Network access is denied by default at the security-posture layer. Third-party s
 The project uses the standard library for the new control-plane modules. The existing GitHub Actions workflow runs the repository unit-test suite on Python 3.11, 3.12 and 3.13.
 
 See docs/autonomy/ for the autonomous engineering protocol and docs/architecture/ for system contracts.
+
+
+## Browser task capability
+
+Super-Ai includes a first-party `browser.agent` capability for controlled Chrome automation. It uses the official Playwright CLI, a dedicated persistent browser profile, explicit HTTPS origin allowlists, deterministic accessibility-tree interactions, bounded output, and confirmation gates for consequential actions.
+
+Install it with:
+
+```bash
+bash scripts/install/browser-agent.sh
+```
+
+Create a task JSON using `docs/browser/GOOGLE_SESSION_SETUP.md`, then run:
+
+```bash
+python3 scripts/run_browser_task.py path/to/task.json
+```
+
+Add `--confirm` only when the task intentionally includes a consequential action.
+
+Google credentials are never stored in the repository. Log in once to the dedicated profile manually and keep `.super-ai/browser/profile/` local.
