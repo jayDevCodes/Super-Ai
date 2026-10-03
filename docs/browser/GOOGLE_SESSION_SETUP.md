@@ -142,7 +142,7 @@ Configure the local verifier:
 python3 scripts/setup_owner_auth.py
 ```
 
-The code is entered through a hidden prompt. Super-Ai stores only a salted scrypt verifier and never puts the code in browser planner prompts, model context, logs, or task outputs. Current OWASP guidance recommends memory-hard password hashing such as Argon2id or scrypt rather than fast general-purpose hashes. \uE200cite\uE202turn425694search0\uE201
+The code is entered through a hidden prompt. Super-Ai stores only a salted scrypt verifier and never puts the code in browser planner prompts, model context, logs, or task outputs. Current OWASP guidance recommends memory-hard password hashing such as Argon2id or scrypt rather than fast general-purpose hashes.
 
 When the Brain receives a policy conflict, the application may supply `owner_override_code` to `Brain.execute(...)`. Successful verification creates a short-lived, task-scoped authorization proof that can be consumed once. The hash-chain audit records the decision without recording the secret.
 
