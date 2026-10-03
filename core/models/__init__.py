@@ -5,6 +5,12 @@ from .manager import (
     ModelSpec,
     TaskModelManager,
 )
+from .capabilities import (
+    DEFAULT_SPECIALIST_CATALOG,
+    SpecialistModelRegistry,
+    SpecialistModelSpec,
+    SpecialistSelection,
+)
 
 __all__ = [
     "DEFAULT_MODEL_CATALOG",
@@ -12,4 +18,8 @@ __all__ = [
     "ModelSelection",
     "ModelSpec",
     "TaskModelManager",
+    "DEFAULT_SPECIALIST_CATALOG",
+    "SpecialistModelRegistry",
+    "SpecialistModelSpec",
+    "SpecialistSelection",
 ]

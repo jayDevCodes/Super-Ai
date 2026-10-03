@@ -110,6 +110,28 @@ DEFAULT_MODEL_CATALOG: tuple[ModelSpec, ...] = (
         source_url="https://ollama.com/library/qwen3.5:0.8b",
     ),
     ModelSpec(
+        name="qwen2.5-coder:0.5b",
+        family="qwen2.5-coder",
+        disk_mb=398,
+        estimated_ram_mb=700,
+        supports_vision=False,
+        task_tags=frozenset({"code", "coding", "debug", "repair", "micro"}),
+        context_window=32_000,
+        license_name="apache-2.0",
+        source_url="https://ollama.com/library/qwen2.5-coder:0.5b",
+    ),
+    ModelSpec(
+        name="qwen2.5-coder:1.5b-instruct",
+        family="qwen2.5-coder",
+        disk_mb=986,
+        estimated_ram_mb=1_500,
+        supports_vision=False,
+        task_tags=frozenset({"code", "coding", "debug", "repair", "tools"}),
+        context_window=32_000,
+        license_name="apache-2.0",
+        source_url="https://ollama.com/library/qwen2.5-coder:1.5b-instruct",
+    ),
+    ModelSpec(
         name="qwen3.5:2b-q4_K_M",
         family="qwen3.5",
         disk_mb=1940,
@@ -270,6 +292,10 @@ class TaskModelManager:
         classification_task = bool(
             token_set & {"classify", "classification", "label", "labels", "route", "triage", "detect"}
         ) and not browser and not visual and not complex_task
+        code_task = bool(
+            token_set
+            & {"bug", "bugs", "debug", "fix", "repair", "refactor"}
+        ) and not browser and not visual
 
         if browser and (visual or complex_task):
             preferred_tags = ("browser_complex", "vision", "browser")
@@ -279,6 +305,8 @@ class TaskModelManager:
             preferred_tags = ("vision", "general", "image")
         elif classification_task:
             preferred_tags = ("classify", "micro", "simple", "extract")
+        elif code_task:
+            preferred_tags = ("repair", "debug", "coding", "code", "tools")
         elif complex_task:
             preferred_tags = ("reasoning", "coding", "general")
         else:

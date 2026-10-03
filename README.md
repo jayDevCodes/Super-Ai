@@ -61,6 +61,8 @@ python3 scripts/run_browser_goal.py \
 
 The Brain/task model manager selects a model from a small local catalog using task type plus RAM/disk budgets. Micro text work can use Gemma 3 270M, normal text fallback can use SmolLM2 360M or Gemma 3 1B, low-RAM browser/vision work uses Qwen3.5 0.8B, normal browser work uses Qwen3.5 2B, and complex/visual work can escalate to Qwen3.5 4B. Phi-4-mini is available for mid-budget reasoning and coding. The manager reuses a model already present on disk, otherwise downloads it temporarily, unloads it from RAM after the task, and deletes only models that Super-Ai downloaded for that task. See docs/research/SMALL_MODELS.md for the dated research snapshot and licensing notes.
 
+For compact code repair, the catalog now has Qwen2.5-Coder 0.5B and 1.5B profiles. Optional embedding, speech, OCR, image and video workers are kept in a separate, resource-gated specialist catalog; they are not downloaded or activated merely by being listed. Run `python3 scripts/run_model_learning_demo.py` to exercise the routing lessons without downloading model weights. See [the multimodal runtime plan](docs/research/MULTIMODAL_RUNTIME.md) for the acceptance-test learning loop and safe quantization/sharding/offload strategy.
+
 The controller uses one browser action per planning cycle, obtains fresh accessibility refs after each action, and can request a selective screenshot for visual context rather than sending screenshots on every cycle. Consequential external effects still stop for confirmation.
 
 

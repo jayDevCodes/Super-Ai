@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import unittest
 
-from core.models import ModelManagerError, TaskModelManager
+from core.models import ModelManagerError, SpecialistModelRegistry, TaskModelManager
 
 
 class FakeModelManager(TaskModelManager):
@@ -66,6 +66,36 @@ class ModelManagerTests(unittest.TestCase):
             max_disk_mb=3000,
         )
         self.assertEqual(selection.model, "phi4-mini:3.8b-q4_K_M")
+
+    def test_small_code_fix_uses_specialist_coder(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Debug and fix this small Python function",
+            max_ram_mb=1_000,
+            max_disk_mb=600,
+        )
+        self.assertEqual(selection.model, "qwen2.5-coder:0.5b")
+
+    def test_code_repair_uses_larger_coder_when_budget_allows(self) -> None:
+        manager = TaskModelManager()
+        selection = manager.select(
+            "Repair this code bug and explain the patch",
+            max_ram_mb=2_000,
+            max_disk_mb=1_200,
+        )
+        self.assertEqual(selection.model, "qwen2.5-coder:1.5b-instruct")
+
+    def test_specialist_registry_gates_accelerator_work(self) -> None:
+        registry = SpecialistModelRegistry()
+        selection = registry.select("embedding", max_ram_mb=1_000, max_disk_mb=500)
+        self.assertEqual(selection.spec.name, "BAAI/bge-small-en-v1.5")
+        with self.assertRaises(LookupError):
+            registry.select("image-generation", max_ram_mb=20_000, max_disk_mb=20_000)
+        image = registry.select(
+            "image-generation", max_ram_mb=20_000, max_disk_mb=20_000,
+            accelerator_available=True, max_vram_mb=10_000,
+        )
+        self.assertEqual(image.spec.name, "stabilityai/sd-turbo")
 
     def test_browser_budget_prefers_smallest_viable_model(self) -> None:
         manager = TaskModelManager()
